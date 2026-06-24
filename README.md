@@ -80,6 +80,8 @@ Changing the xml file will reload the UI automatically
 
 For further API references for XML and PYUI check the documentation.
 
+Documentation: [PYUI Documentation](https://akalabayapal.github.io/PYUI-docs/)
+
 
 ## Credits
 
