@@ -54,7 +54,7 @@ To compile to a PYUI project and run it
 
     python -m PYUI.buildtools --compile <directory-of-project> --run
 
-This command will compile your project into a PYUI project and run it. Within few seconds(depending on project size) you can see you layout
+This command will compile your project into a PYUI project and run it. Within few seconds(depending on project size) you can see your project load in a while.
 
 To compile without running project
 
