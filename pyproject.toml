@@ -3,26 +3,34 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
+requires-python = ">=3.10"
 name = "PYUI"
-version = "1.0.0"
+version = "0.5.0"
 authors = [
   { name="Akalabaya Pal", email="akalabaya.2008@proton.me" },
 ]
 description = "A short description of my package"
 readme = "README.md"
-requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: MIT License",
     "Operating System :: OS Dependent",
 ]
 dependencies = [
-   
+  "pywebview==6.2.1",
+  "watchdog==6.0.0",
+  "websockets==16.0",
+  "colorama",
+  "pyinstaller"
 ]
 
-[tool.setuptools.package-data]
-# Includes all .dll files in any package
-"*" = ["PYUI/*.dll","PYUI/*.js","PYUI/*.spec","PYUI/*.xml","PYUI/*.css"]
+[tool.setuptools]
+# Set to false so it uses the package-data paths below instead of relying on Git/MANIFEST.in
+include-package-data = false 
 
 [tool.setuptools.packages.find]
 where = ["./"]
+
+[tool.setuptools.package-data]
+# Using "*" ensures all packages (regardless of upper/lowercase names) include their contents
+"*" = ["**/*"]

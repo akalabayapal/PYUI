@@ -26,7 +26,7 @@ This project is targeted to make cross platform applications using python.PYUI i
 
 ### Installing PYUI 
 
-PYUI has been tested only one Windows right now in v1.0 it will support both Windows and linux. However you can still use it in linux by building your own **PYUI** Package from source.
+PYUI has been tested only on Windows(x64) right now in v1.0 it will support both Windows and linux. However you can still use it in linux by building your own **PYUI** Package from source by compiling the xmlparser and changing few lines of code in *PYUI/compiler*.
 
 1.Clone the repository and go to the root of the repository.
 

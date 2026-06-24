@@ -228,7 +228,7 @@ def build(PROJECT_DIR:str,TAILWIND_EXE:str,target=None,isexe=None,name=None,is_c
 
     if name == None:
         name = "PYUICommonExecutable"
-    if is_console != None:
+    if is_console:
             os.environ['CONSOLE'] = '1'
     else:
         os.environ['CONSOLE'] = '0'
