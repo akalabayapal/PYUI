@@ -1,0 +1,42 @@
+<pyui>
+    <metadata>
+        <version>1.0.0</version>
+    </metadata>
+
+    <form-settings>
+        <title>PyUI Portal - Hello World</title>
+        <width>700</width>
+        <height>720</height>
+        <resizable>true</resizable>
+    </form-settings>
+   <style file="index.css"></style>
+    <main-content default-active-window="hello-world-view">
+        <window id="hello-world-view" style-class="bg-slate-950 text-white flex min-h-screen items-center justify-center font-sans antialiased p-8">
+            <container id="main-card" style-class="w-full max-w-lg p-10 bg-slate-900 rounded-3xl shadow-2xl border border-slate-800/80 flex flex-col items-center text-center transition-all duration-300 hover:border-emerald-500/30">
+                
+                <container id="icon-glow" style-class="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500/10 to-emerald-500/10 flex items-center justify-center border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.25)] mb-8">
+                    <Text id="globe-icon" style-class="text-3xl text-emerald-400 font-bold" innerText="🌐"></Text>
+                </container>
+
+                <Text id="app-title" style-class="text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400" innerText="Hello, World!"></Text>
+                
+                <br></br>
+                
+                <Text id="app-subtitle" style-class="text-sm text-slate-400 font-medium max-w-sm leading-relaxed" innerText="Welcome to the next generation of sleek, declarative interface design. Powered by Python and beautifully styled with Tailwind CSS."></Text>
+                
+                <br></br>
+                <br></br>
+
+                <Button id="btn-explore" style-class="w-full py-3 px-6 bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200" innerText="Get Started with PYUI docs"></Button>
+                
+                <br></br>
+
+                <container id="status-footer" style-class="mt-6 w-full pt-6 border-t border-slate-800/60 flex justify-between items-center text-xs text-slate-500">
+                    <Text id="status-text" style-class="text-emerald-400/80 flex items-center font-medium" innerText="● Environment Ready"></Text>
+                    <Text id="version-text" style-class="text-slate-500 hover:text-cyan-400 cursor-pointer transition-colors" innerText="v1.0.0 →"></Text>
+                </container>
+
+            </container>
+        </window>
+    </main-content>
+</pyui>
