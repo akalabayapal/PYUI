@@ -24,13 +24,6 @@ This project is targeted to make cross platform applications using python.PYUI i
 
 ## Getting Started
 
-### Installing PYUI 
-
-PYUI has been tested only on Windows(x64) right now in v1.0 it will support both Windows and linux. However you can still use it in linux by building your own **PYUI** Package from source by compiling the xmlparser and changing few lines of code in *PYUI/compiler*.
-
-1.Get the PYUI using 
-
-    pip install pyui-desktop
 
 ### Setting up project
 
@@ -75,8 +68,6 @@ You can hot-reload the layout for faster UI development.
 Changing the xml file will reload the UI automatically
 
 **Note:** Use the *--keepontop* flag to keep the UI on top always
-
-**Hot-Reloading-bug:** Current version(0.5) has a bug in hotreloading that non tailwind css are not applied.Will be fixed in 0.5.1
 
 For further API references for XML and PYUI check the documentation.
 
