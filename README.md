@@ -82,6 +82,12 @@ For further API references for XML and PYUI check the documentation.
 
 Documentation: [PYUI Documentation](https://akalabayapal.github.io/PYUI-docs/)
 
+**Note:** Documentation is yet not completed
+
+## Changes and Contribution
+
+Contribution in this project is open and highly welcomed.
+
 
 ## Credits
 
