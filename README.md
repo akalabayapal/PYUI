@@ -34,11 +34,11 @@ PYUI has been tested only on Windows(x64) right now in v1.0 it will support both
 
 ### Setting up project
 
-    python -m PYUI.create <directory-path>
+    python -m PYUI.create HelloWorldApp
 
-**Note:** Directory is any blank folder. provide its path for helping PYUI manager to make the folder structure for you
+**Note:** Replace your app name with 'HelloWorldApp' as per your choice
 
-This will generate boilerplate project. Following folder and files will be generated in the given directory.
+This will generate boilerplate project. Following folder and files will be generated in the given folder(i.e HelloWorldApp or your app name).
 
     layout
     code
@@ -52,27 +52,62 @@ This will generate boilerplate project. Following folder and files will be gener
 
 ### Compiling project
 
+Go to the project directory
+
+    cd HelloWorldApp 
+
+**Note:** Replace your app name with 'HelloWorldApp' and go to that directory
+
 To compile to a PYUI project and run it
 
-    python -m PYUI.buildtools --compile <directory-path> --run
-
-Or if you are inside the directory run
-
-    python -m PYUI.buildtools --compile ./ --run  
-
-
+    python -m PYUI.buildtools --compile ./ --run
 
 This command will compile your project into a PYUI project and run it. Within few seconds(depending on project size) you can see your project load in a while.
 
+
+![hello img](assets/hello.png)
+
 To compile without running project
 
-    python -m PYUI.buildtools --compile <directory-path>
+    python -m PYUI.buildtools --compile ./
 
 It will save your project in *build/temp_xxxxx.yyyy* (see last line of buildscript output). To launch the project go to the directory and run:
 
     python bootstrap.py
 
 It will launch your UI
+
+To compile to a executable
+
+    python -m PYUI.buildtools --compileexe ./ --name HelloWorldApp
+
+This command will make a *debug* folder go to that folder and run *HelloWorldApp.exe*
+
+**Note:** Replace the 'HelloWorldApp' with your disired App Name
+
+
+## Changing Layouts
+
+TO change layouts open the *layouts/index.xml* and change the layout as per your needs.To start with a blank boilerplate, clear the content of the file and replace it with:
+
+    <pyui>
+        <metadata>
+        <version>1.0.0</version>
+        </metadata>
+        <form-settings>
+            <title>PyUI Portal - Hello World</title>
+        </form-settings>
+        <main-content default-active-window="boilderplateview">
+            <window id="boilderplateview">
+    
+            </window>
+        </main-content>
+    </pyui>
+
+[Refer to documentation for XML Tags](https://akalabayapal.github.io/PYUI-docs/PYUI%20XML%20LAYOUT%20GUIDE/important_tags/) for further references
+
+**Note:** Documentation is yet not completed and is under development
+
 
 ### HotReloading Layouts
 
@@ -86,11 +121,132 @@ Changing the xml file will reload the UI automatically
 
 **Hot-Reloading-bug:** Current version(0.5) has a bug in hotreloading that non tailwind css are not applied.Will be fixed in 0.5.1
 
+
+
+## Handling Logic using python
+
+Open the *code/index.py* you will see
+
+    from PYUI.Package.PYUI import PYUI
+
+    def entry(obj:PYUI):
+        pass
+
+*entry* is the entry point to your code for handling *layouts/index.xml*.
+
+### Simple PYUI References
+
+1.Changing innertext for a component
+
+    obj.settext('id','new-text')
+
+Replace with the tag's id 
+
+2.Getting a particular id's attribute
+
+    obj.getAttrib('id','attribute-to-get')
+
+3.Setting a particular id's attribute
+
+    obj.set('id','attribute','new-value')
+
+4.Set a new Style for a id
+
+    obj.setStyle('id','attribute','value')
+
+5.Add or Remove a Class
+
+    obj.changeClass('id','class-name-to-be-added-removed',action)
+
+**Action:** this can be ADD and REMOVE.
+
+**Toggle is also taken but is yet to be implemented in 0.5.1**
+
+6.Get classList for a id
+
+    obj.getClassList('id')
+
+7.Remove attribute
+
+    obj.removeAttrib('id','attribute')
+
+8.Register a callback to a id
+
+    def callback_function(obj:PYUI,message:msg):
+        
+        #your logic goes here
+        ....
+
+    def entry(obj:PYUI):
+
+        ....
+        obj.RegisterCallback('id','typeOfCallback',callback_function)
+
+**Note:** typeOfCallback is any valid callback supported by JS Dom like click,hover etc.
+
+9.UnRegister a callback
+
+    obj.UnRegistetCallBack('id','typeOfCallback')
+
+10.End the form
+
+    obj.End()
+
+For further and more advanced features refer to our documentation.
+
+## Making a new view/window
+
+PYUI supports multiple view inside one form.To add a new view you need to add *window* tag with id inside *main-content* tag
+
+    <main-content>
+        <window id="window-1">
+            ....
+        </window>
+
+        <window id="newly-added-window">
+            ....
+        </window>
+    
+    <main-content>
+
+**Note:** PYUI layout only supports **"** and not **'**.Using a single quote may cause errors.
+
+### Switching between views/Windows
+
+You can dynamically switch between windows/views
+
+    obj.changeWindow('id-of-window-to-be-displayed')
+
+
+## Creating a new form
+
+Forms are isolated windows inside a single app.Each forms are process level isolated from one another.
+
+To make a new form
+
+1.Add *newform.xml* in layouts folder
+
+2.strictly put the same name *newform.py* in the code folder
+
+3.Copy the boilerplates from above to start with
+
+### Loading new forms dynamically
+
+To load a form from python use:
+
+    obj.loadForm('newform')
+
+**Note:** Replace 'newform' with your form name accordingly
+
+
+## Documentation
+
 For further API references for XML and PYUI check the documentation.
 
 Documentation: [PYUI Documentation](https://akalabayapal.github.io/PYUI-docs/)
 
-**Note:** Documentation is yet not completed
+**Note:** Documentation is yet not completed and is under development
+
 
 ## Changes and Contribution
 
