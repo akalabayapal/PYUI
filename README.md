@@ -34,6 +34,8 @@ PYUI has been tested only on Windows(x64) right now in v1.0 it will support both
 
 ### Setting up project
 
+    mkdir HelloWorldApp
+    
     python -m PYUI.create HelloWorldApp
 
 **Note:** Replace your app name with 'HelloWorldApp' as per your choice
