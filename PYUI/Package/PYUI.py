@@ -184,6 +184,7 @@ class PYUI:
         
         return self.__ExecuteJS({"id":id,"att":attribute,"value":value},"update",ret=ret)
     
+    
     def setStyle(self,id,attribute,value,ret=False):
     
         if not id in self.id_map:

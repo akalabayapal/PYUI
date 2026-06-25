@@ -199,7 +199,7 @@ class Msghandler {
                 var wrapper = this.registerCallback(id, typeCallback, uuid);
 
                 var container = { wrap: wrapper, type: typeCallback, Eleid: id };
-                console.log(container);
+                
 
             
             }
@@ -286,12 +286,18 @@ class Msghandler {
             var id = args.id;
             var value = args.value;
             var att = args.att;
-
+            
+            if(att == 'value')
+            {
+                document.getElementById(id).value = value; // We need to handle the value separately
+            }
+            else{
             var ele = document.getElementById(id);
 
             if (ele) {
                 ele.setAttribute(att, value);
             }
+        }
 
         }
         else if (execution_type == 'updateStyle') {
