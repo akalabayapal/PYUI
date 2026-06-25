@@ -6,7 +6,6 @@ from PYUI.pyuinode import PyUILayoutNode
 import queue
 import uuid
 import webview
-from concurrent.futures import ThreadPoolExecutor
 import traceback
 import time
 import itertools
@@ -125,7 +124,6 @@ class PYUI:
         self.id_map = infoDict['id_index_map']
         self.id_windows = infoDict['id_windows']
         self.Syscall = syscall
-        self.thpool = ThreadPoolExecutor(max_workers=5)
         self.MQ = MQ
         self.counter = itertools.count()
         self.__user_Syscall = {'_':0}
@@ -316,7 +314,9 @@ class PYUI:
         #store all the queue and threads in a list....
         CALLBACK_QUEUE_LIST[token] = {"queue":q,"uuid":msg.uuid}
 
-        f = self.thpool.submit(_callback_handler,callback,q,self)
+        f = threading.Thread(target=_callback_handler,args=(callback,q,self,))
+        f.daemon = True
+        f.start()
         THREAD_CALLBACKS[token] = f
 
         #Register the callback to the callback list
@@ -402,7 +402,10 @@ class PYUI:
         CALLBACK_QUEUE_LIST[syscall_name] = {"queue":q,"uuid":msg.uuid}
         print("[Dubug] Callback Added to callback queue",CALLBACK_QUEUE_LIST)
 
-        f = self.thpool.submit(_callback_handler,callback,q,self)
+        f = threading.Thread(target=_callback_handler,args=(callback,q,self,))
+        f.daemon = True
+        f.start()
+
         THREAD_CALLBACKS[syscall_name] = f
 
     def UnSyscallRegisterCallBack(self,syscall_name):
@@ -542,6 +545,11 @@ class Hook:
         self.dirty = False
 
         pyui.thpool.submit(self.__hook_handler,self.q)
+        th = threading.Thread(target=self.__hook_handler,args=(self.q))
+        th.daemon = True
+
+        th.start()
+
         msg = Message(SysCall['STOP_HOOKS'],self.q)
         self.obj.SQ.put((SysCall['STOP_HOOKS'],next(self.obj.counter),msg))
 

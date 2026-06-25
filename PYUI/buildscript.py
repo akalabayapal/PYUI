@@ -11,6 +11,7 @@ import PYUI.tailwindBuilder
 import subprocess
 import PYUI.settings
 from pathlib import Path
+import stat
 
 BUILD_FOLDERS = [
     'compiled_layouts', #bin compiled layouts for instant loading
@@ -54,6 +55,10 @@ def print_typed(msg,type='success',show_header=True):
         print(DEBUG_TYPE[type]+f"[BUILD_SCRIPT]"+colorama.Fore.RESET,msg)
     else:
         print(msg)
+def remove_readonly(func, path, excinfo):
+    # Change the permission to read/write and retry
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
 
 def build(PROJECT_DIR:str,TAILWIND_EXE:str,target=None,isexe=None,name=None,is_console=None,config:PYUI.settings.CompilerSettings=None):
     if config == None:
@@ -62,6 +67,25 @@ def build(PROJECT_DIR:str,TAILWIND_EXE:str,target=None,isexe=None,name=None,is_c
     if not os.path.isdir(os.path.join(PROJECT_DIR,'build')):
         print_typed('Build folder not found so making one','warning')
         os.mkdir(os.path.join(PROJECT_DIR,'build'))
+    else:
+         #Check if the build is overcrowded issue warining 
+         item = 0
+         for obj in os.scandir(os.path.join(PROJECT_DIR,'build')):
+              if os.path.basename(obj).startswith('temp_') and os.path.isdir(obj):
+                   item += 1
+        
+         if config.ISSUE_TEMP_OVERCROWDING_LIMIT <= item:
+              print_typed(f"Your build directory is too overcrowded and has {item} previous builds more than alert limit of {config.ISSUE_TEMP_OVERCROWDING_LIMIT}.",type='warning')
+              val = input("Press (c) and enter to clean them and start build or enter to continue without cleaning")
+
+              if val.lower() == 'c':
+                   for obj in os.scandir(os.path.join(PROJECT_DIR,'build')):
+                        if os.path.basename(obj).startswith('temp_') and os.path.isdir(obj):
+                             try:
+                                  shutil.rmtree(obj.path,onexc=remove_readonly)
+                             except:
+                                  print_typed(f"Failed to remove directory {obj.path}.",type='error')
+              
 
 
     TEMP_FOLDER = os.path.abspath(os.path.join(PROJECT_DIR,'build\\temp_'+str(time.time())))

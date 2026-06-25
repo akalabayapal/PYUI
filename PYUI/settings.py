@@ -52,6 +52,7 @@ class CompilerSettings:
     }
 
     TAILWIND_ENABLED = False
+    ISSUE_TEMP_OVERCROWDING_LIMIT = 10
 
 
     HOOK_MAP = {

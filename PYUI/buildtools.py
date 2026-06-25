@@ -24,6 +24,8 @@ from watchdog.events import FileSystemEventHandler
 import threading
 import subprocess
 import atexit
+import stat
+import pathlib
 
 
 DEFAULT_WINDOW_CONFIG = {
@@ -167,11 +169,28 @@ parser.add_argument('--target',type=str,help='Target of build DEBUG or RELASE(Op
 parser.add_argument('--settings',type=str,help='Build settings must be a valid python PYUI settings file')
 parser.add_argument('--tailwindpath',type=str,help='Path to tailwind.exe needed if tailwind build is on.')
 parser.add_argument('--run',action='store_true',help='To instantly execute project used with --compile')
+parser.add_argument('--stylepath',type=str,help='Needed if your layout has some styles for hotreloading only.Ignored for other functionalites')
 
+
+def remove_readonly(func, path, excinfo):
+    # Change the permission to read/write and retry
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
 
 @atexit.register
 def cleanup():
-    print("Please delete the cache files created in temprun manually.")
+    if args.hotreload:
+        print("Cleaning up cache files")
+        err = False
+        if os.path.isdir('temprun'):
+            for obj in os.scandir('temprun'):
+                try:
+                    shutil.rmtree(obj.path,onexc=remove_readonly)
+                except:
+                    err = True
+
+        if err:
+            print("Can not delete all temprun cache files manually please delete them manually.")
     
 
 def sanitize_window_config(config: dict) -> dict:
@@ -273,6 +292,7 @@ def run(file_to_watch,bin_file,temp_file_load,folder,css_file,settings:PYUI.sett
             settings.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION'](os.path.abspath(folder))
 
         build_global_tailwind(os.environ.get('tailwind','tailwind/tailwind.exe'),os.path.join(folder,'layouts'),css_file)
+    
 
     load_layout(temp_file_load,bin_file,False)
 
@@ -312,6 +332,19 @@ def HandleHotReload():
             settingsCustom.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION'](os.path.abspath(folder))
 
         build_global_tailwind(os.environ.get('tailwind','tailwind/tailwind.exe'),os.path.join(folder,'layouts'),css_file)
+
+    #Copy the css files to the given directory
+    style_dir = os.path.join(folder,'layouts','styles')
+    if args.stylepath:
+        for obj in os.scandir(args.stylepath):
+            shutil.copy(obj,os.path.join(style_dir,os.path.basename(obj)))
+    else:
+        # look for the parent if styles present
+        stylepath_expected = os.path.join(pathlib.Path(path_of_xml).parent,'styles')
+        if os.path.isdir(stylepath_expected):
+            for obj in os.scandir(stylepath_expected):
+                shutil.copy(obj,os.path.join(style_dir,os.path.basename(obj)))
+    
 
     window = load_layout(html_file,bin_file,True)
    
