@@ -44,13 +44,13 @@ PYUI has been tested only on Windows(x64) right now in v1.0 it will support both
 
 This will generate boilerplate project. Following folder and files will be generated in the given folder(i.e HelloWorldApp or your app name).
 
-    layout
+    layouts
     code
-    layout/JS
-    layout/styles
+    layouts/JS
+    layouts/styles
     code/index.py
     code/__init__.py
-    layout/index.xml
+    layouts/index.xml
     settings.py
 
 
@@ -112,6 +112,23 @@ TO change layouts open the *layouts/index.xml* and change the layout as per your
 
 **Note:** Documentation is yet not completed and is under development
 
+### HotReloading Layouts
+
+You can hot-reload the layout for faster UI development.
+
+    python -m PYUI.buildtools --hotreload layouts/index.xml
+
+**Note:** Replace with your file name
+
+Changing the xml file will reload the UI automatically
+
+If you are using styles from some folder that is not present in styles folder of the xml-file directory then
+
+    python -m PYUI.buildtools --hotreload <layout-xml-file> --stylepath <custom-styles-folder>
+   
+
+
+**Note:** Use the *--keepontop* flag to keep the UI on top always
 
 ## Handling Logic using python
 

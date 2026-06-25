@@ -69,8 +69,7 @@ Changing the xml file will reload the UI automatically
 
 **Note:** Use the *--keepontop* flag to keep the UI on top always
 
-For further API references for XML and PYUI check the documentation.
-
+For further API references for XML and PYUI check the [PYUI Documentation](https://akalabayapal.github.io/PYUI-docs/)
 
 ## Credits
 
