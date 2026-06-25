@@ -34,7 +34,9 @@ PYUI has been tested only on Windows(x64) right now in v1.0 it will support both
 
 ### Setting up project
 
-    python -m PYUI.create <directory-of-project>
+    python -m PYUI.create <directory-path>
+
+**Note:** Directory is any blank folder. provide its path for helping PYUI manager to make the folder structure for you
 
 This will generate boilerplate project. Following folder and files will be generated in the given directory.
 
@@ -52,13 +54,19 @@ This will generate boilerplate project. Following folder and files will be gener
 
 To compile to a PYUI project and run it
 
-    python -m PYUI.buildtools --compile <directory-of-project> --run
+    python -m PYUI.buildtools --compile <directory-path> --run
+
+Or if you are inside the directory run
+
+    python -m PYUI.buildtools --compile ./ --run  
+
+
 
 This command will compile your project into a PYUI project and run it. Within few seconds(depending on project size) you can see your project load in a while.
 
 To compile without running project
 
-    python -m PYUI.buildtools --compile <directory-of-project>
+    python -m PYUI.buildtools --compile <directory-path>
 
 It will save your project in *build/temp_xxxxx.yyyy* (see last line of buildscript output). To launch the project go to the directory and run:
 
