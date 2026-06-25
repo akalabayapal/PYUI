@@ -23,6 +23,7 @@ from watchdog.events import FileSystemEventHandler
 
 import threading
 import subprocess
+import atexit
 
 
 DEFAULT_WINDOW_CONFIG = {
@@ -115,7 +116,11 @@ class FileChangeHandler(FileSystemEventHandler):
             if current_time - self.last_triggered > self.cooldown and md5 !=self.last_md5[event.src_path]:
                 self.last_triggered = current_time
                 self.last_md5[event.src_path] = md5
-                run(self.file_to_watch,self.bin_file,self.temp_file_load,self.folder,self.css_file,self.settings)
+                try:
+                    run(self.file_to_watch,self.bin_file,self.temp_file_load,self.folder,self.css_file,self.settings)
+                except Exception as ex:
+                    print("Error in script compilation:",ex)
+
         
 
         elif event.src_path in self.component_list:
@@ -164,7 +169,10 @@ parser.add_argument('--tailwindpath',type=str,help='Path to tailwind.exe needed 
 parser.add_argument('--run',action='store_true',help='To instantly execute project used with --compile')
 
 
-
+@atexit.register
+def cleanup():
+    print("Please delete the cache files created in temprun manually.")
+    
 
 def sanitize_window_config(config: dict) -> dict:
     boolean_keys = {
@@ -260,7 +268,11 @@ def run(file_to_watch,bin_file,temp_file_load,folder,css_file,settings:PYUI.sett
     tree,components = compile_layout(os.path.abspath(file_to_watch),bin_file,os.path.dirname(os.path.dirname(file_to_watch)),isBuildSript=True,TAG_RULES_HASHMAP=settings.CompilerSettings.TAG_RULES_HASHMAP)
     save_html_file(tree,temp_file_load,'',HTML_MAP=settings.CompilerSettings.HTML_TAG_CONVERSION_MAP,LAYOUT_TAGS=settings.CompilerSettings.LAYOUT_CONTAINER_TAGS)
 
-    build_global_tailwind(os.environ.get('tailwind','tailwind/tailwind.exe'),os.path.join(folder,'layouts'),css_file)
+    if PYUI.settings.CompilerSettings.TAILWIND_ENABLED:
+        if settings.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION']:
+            settings.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION'](os.path.abspath(folder))
+
+        build_global_tailwind(os.environ.get('tailwind','tailwind/tailwind.exe'),os.path.join(folder,'layouts'),css_file)
 
     load_layout(temp_file_load,bin_file,False)
 
