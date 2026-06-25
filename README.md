@@ -1,4 +1,4 @@
-# PYUI(Python UI)
+![header img](assets/header.png)
 
 This project is targeted to make cross platform applications using python.PYUI is a layout pre-compiled framework for making python applications in very lightweight sizes. It uses a xml layouting system for defining layouts, python for logic and **PYWebview** as the renderer.Leading to a blank application size only 16MB compared to heavyweight rendering systems cosing 50+ MB or TKinter that has very legacy thread-unsafe architecture
 
@@ -109,20 +109,6 @@ TO change layouts open the *layouts/index.xml* and change the layout as per your
 [Refer to documentation for XML Tags](https://akalabayapal.github.io/PYUI-docs/PYUI%20XML%20LAYOUT%20GUIDE/important_tags/) for further references
 
 **Note:** Documentation is yet not completed and is under development
-
-
-### HotReloading Layouts
-
-You can hot-reload the layout for faster UI development.
-
-    python -m PYUI.buildtools --hotreload <layout-xml-file>
-
-Changing the xml file will reload the UI automatically
-
-**Note:** Use the *--keepontop* flag to keep the UI on top always
-
-**Hot-Reloading-bug:** Current version(0.5) has a bug in hotreloading that non tailwind css are not applied.Will be fixed in 0.5.1
-
 
 
 ## Handling Logic using python
