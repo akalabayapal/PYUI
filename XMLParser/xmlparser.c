@@ -150,97 +150,104 @@ int compareRawstr(char s1[], char s2[], int length1, int length2)
     return true;
 }
 
-void TagParser(char paramsstring[], int size,DOMNode *node)
+void TagParser(char paramsstring[], int size, DOMNode *node)
 {
-    char buffer[size+1];
+    char buffer[size + 1];
     int buffsize = 0;
 
     bool istagprocessed = false;
     bool isparsingParamkey = true;
-    bool isparsingParamValue=false;
+    bool isparsingParamValue = false;
     bool paramskeyinit = false;
+    char startchar = ' ';
 
-    char key[size][256];
+    char key[size][512];
+
     int keysize = 0;
 
-    char value[size][256];
+    char value[size][2048];
     int valuesize = 0;
 
     for (int i = 0; i < size; i++)
     {
         char content = paramsstring[i];
 
-       
-        
-            if(content == '=')
-            {
-                //Change the operation from key to params
-                isparsingParamkey=false;
-                isparsingParamValue = true;
-                buffer[buffsize] = '\0';
-                
+        if (content == '=')
+        {
+            // Change the operation from key to params
+            isparsingParamkey = false;
+            isparsingParamValue = true;
+            buffer[buffsize] = '\0';
 
-                //Put buffer into the key and clean it
-                strcpy(key[keysize],buffer);
-                //printf("Debug:KEY name:%s\n",key[keysize]);
-                keysize++; 
-                buffsize = 0;
-                strcpy(buffer,"");
-
-            }
-            else if(isparsingParamkey == true && isparsingParamValue == false)
+            // Put buffer into the key and clean it
+            strcpy(key[keysize], buffer);
+            // printf("Debug:KEY name:%s\n",key[keysize]);
+            keysize++;
+            buffsize = 0;
+            strcpy(buffer, "");
+        }
+        else if (isparsingParamkey == true && isparsingParamValue == false)
+        {
+            // printf("Debug:Added to buffer for key:%c\n",content);
+            buffer[buffsize] = content; // put value in buffer
+            buffsize++;
+        }
+        else if (isparsingParamValue == true && isparsingParamkey == false)
+        {
+            if (content == '\"' || content == '\'')
             {
-                //printf("Debug:Added to buffer for key:%c\n",content);
-                buffer[buffsize] = content; //put value in buffer
-                buffsize++;
-            }
-            else if(isparsingParamValue == true && isparsingParamkey == false)
-            {
-                if(content == '\"' || content == '\'')
+                if (paramskeyinit == true)
                 {
-            
-                    if(paramskeyinit==true)
+                    if (startchar == content)
                     {
-                        //printf("Debug:params value recording stopped...\n");
-                        //stop it
-                        isparsingParamValue = false;
-                        isparsingParamkey=true;
-                        paramskeyinit=false;
 
-                        //clean buffer and add the value to key
+                        printf("Debug:params value recording stopped...\n");
+                        // stop it
+                        isparsingParamValue = false;
+                        isparsingParamkey = true;
+                        paramskeyinit = false;
+
+                        // clean buffer and add the value to key
                         buffer[buffsize] = '\0';
-                        strcpy(value[valuesize],buffer);
-                        strcpy(buffer,""); 
-                        buffsize =0;
+                        strcpy(value[valuesize], buffer);
+                        strcpy(buffer, "");
+                        buffsize = 0;
                         valuesize++;
+
+                        // reset startchar to blank
+                        startchar = ' ';
                     }
                     else
                     {
-                        //printf("Debug:value recording started..\n");
-                        paramskeyinit = true;
-                    }
-                    
-                    continue;
-                }
-                else if(paramskeyinit == true)
-                {
-                    //Else put it into buffer
-                       // printf("Debug:Added to buffer for value:%c\n",content);
+                        // Add it to buffer
                         buffer[buffsize] = content;
                         buffsize++;
+                    }
+                }
+                else
+                {
+                    printf("Debug:value recording started..\n");
+                    startchar = content; // Store the current char so that we can match it in time of the closing
+                    paramskeyinit = true;
                 }
 
+                continue;
             }
-
-
-            // =========================================================
-    // THE BRIDGE: Allocate memory directly to the node arrays
-    // =========================================================
-   
+            else if (paramskeyinit == true)
+            {
+                // Else put it into buffer
+                //  printf("Debug:Added to buffer for value:%c\n",content);
+                buffer[buffsize] = content;
+                buffsize++;
+            }
         }
 
+        // =========================================================
+        // THE BRIDGE: Allocate memory directly to the node arrays
+        // =========================================================
+    }
 
-        node->attrcount = keysize;
+    node->attrcount = keysize;
 
     if (keysize > 0)
     {
@@ -251,11 +258,14 @@ void TagParser(char paramsstring[], int size,DOMNode *node)
         for (int i = 0; i < keysize; i++)
         {
             node->attrKey[i] = strdup(key[i]);
-            
-            if (i < valuesize) {
+
+            if (i < valuesize)
+            {
                 node->attrVal[i] = strdup(value[i]);
-                
-            } else {
+                printf("DEBUG:The value is:%s\n", value[i]);
+            }
+            else
+            {
                 node->attrVal[i] = strdup("");
             }
         }
@@ -266,9 +276,10 @@ void TagParser(char paramsstring[], int size,DOMNode *node)
         node->attrVal = NULL;
     }
 
-    //printf("KeySize:%d ValueSize:%d\n", keysize, valuesize);
- 
+    // printf("KeySize:%d ValueSize:%d\n", keysize, valuesize);
 }
+
+
 
 void freeDOMTree(DOMNode *node) {
     if (node == NULL) return;

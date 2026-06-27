@@ -149,11 +149,13 @@ void TagParser(char paramsstring[], int size, DOMNode *node)
     bool isparsingParamkey = true;
     bool isparsingParamValue = false;
     bool paramskeyinit = false;
+    char startchar = ' ';
 
-    char key[size][256];
+    char key[size][512];
+
     int keysize = 0;
 
-    char value[size][256];
+    char value[size][2048];
     int valuesize = 0;
 
     for (int i = 0; i < size; i++)
@@ -184,25 +186,38 @@ void TagParser(char paramsstring[], int size, DOMNode *node)
         {
             if (content == '\"' || content == '\'')
             {
-
                 if (paramskeyinit == true)
                 {
-                    // printf("Debug:params value recording stopped...\n");
-                    // stop it
-                    isparsingParamValue = false;
-                    isparsingParamkey = true;
-                    paramskeyinit = false;
+                    if (startchar == content)
+                    {
 
-                    // clean buffer and add the value to key
-                    buffer[buffsize] = '\0';
-                    strcpy(value[valuesize], buffer);
-                    strcpy(buffer, "");
-                    buffsize = 0;
-                    valuesize++;
+                        printf("Debug:params value recording stopped...\n");
+                        // stop it
+                        isparsingParamValue = false;
+                        isparsingParamkey = true;
+                        paramskeyinit = false;
+
+                        // clean buffer and add the value to key
+                        buffer[buffsize] = '\0';
+                        strcpy(value[valuesize], buffer);
+                        strcpy(buffer, "");
+                        buffsize = 0;
+                        valuesize++;
+
+                        // reset startchar to blank
+                        startchar = ' ';
+                    }
+                    else
+                    {
+                        // Add it to buffer
+                        buffer[buffsize] = content;
+                        buffsize++;
+                    }
                 }
                 else
                 {
-                    // printf("Debug:value recording started..\n");
+                    printf("Debug:value recording started..\n");
+                    startchar = content; // Store the current char so that we can match it in time of the closing
                     paramskeyinit = true;
                 }
 
@@ -321,16 +336,16 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
     {
         char charecter = htmlContent[i];
 
-        if(charecter == '"')
+        if (charecter == '"')
         {
             isInsideQuote = !isInsideQuote;
         }
 
-        if (charecter == '<' && isInsideQuote==false && isInitTagStarted == false)
+        if (charecter == '<' && isInsideQuote == false && isInitTagStarted == false)
         {
             isInitTagStarted = true;
         }
-        else if (charecter == '>' && isInsideQuote==false && isInitTagStarted == true && isEndTagStarted == false)
+        else if (charecter == '>' && isInsideQuote == false && isInitTagStarted == true && isEndTagStarted == false)
         {
             tagStack++; // Increase the depth on hitting a start tag
 
@@ -347,7 +362,7 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
             *(tag + tagpos) = charecter;
             tagpos++;
         }
-        else if (charecter == '<' && isInsideQuote==false && isInitTagEnded == true)
+        else if (charecter == '<' && isInsideQuote == false && isInitTagEnded == true)
         {
             isEndTagStarted = true;
         }
@@ -356,22 +371,22 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
             *(innerHTML + htmlpos) = charecter;
             htmlpos++;
         }
-        else if (charecter == '>' && isInsideQuote==false && isEndTagStarted == true)
+        else if (charecter == '>' && isInsideQuote == false && isEndTagStarted == true)
         {
 
             *(Endtag + Endtagpos) = '\0'; // 1. Null-terminate BEFORE checking!
             trim_whitespace(Endtag);      // 2. Clean out trailing spaces
             Endtagpos = strlen(Endtag);   // 3. Reset index length
 
-            //printf("Endtag got=%s Inittag=%s\n", Endtag, tagpure);
+            // printf("Endtag got=%s Inittag=%s\n", Endtag, tagpure);
 
             if (compareRawstr(tagpure, Endtag, strlen(tagpure), Endtagpos) == true && isEndslashgot == true)
             {
-               // printf("Current tag stack:%d\n", tagStack);
+                // printf("Current tag stack:%d\n", tagStack);
 
                 if (tagStack == 1)
                 {
-                    //printf("Matching tag found for:%s=%s\n", tagpure, Endtag);
+                    // printf("Matching tag found for:%s=%s\n", tagpure, Endtag);
                     isEndTagEnded = true;
                     *(contentprocessed + contentlen) = charecter;
                     contentlen++; // Accurately count the final '>' found inside the loop boundary
@@ -380,7 +395,7 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
                 else
                 {
                     // It is not the actual ending tag
-                    //printf("This is the impostor tag skip it....\n");
+                    // printf("This is the impostor tag skip it....\n");
                     isEndslashgot = false;
 
                     *(innerHTML + htmlpos) = '<';
@@ -416,25 +431,22 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
 
                 if (isEndslashgot == false)
                 {
-                    //printf("Copying from opentag...\n");
-
+                    // printf("Copying from opentag...\n");
 
                     char pureOpen[opentagtemppos + 1];
                     char paramOpen[opentagtemppos + 1];
 
-            
                     *(Opentagtemp + opentagtemppos) = '\0'; // 1. Null-terminate BEFORE trimming
 
-                    trim_whitespace(Opentagtemp);   // 2. Strip spaces cleanly
-                    tagpos = strlen(Opentagtemp);   // 3. Reset to precise string length
+                    trim_whitespace(Opentagtemp); // 2. Strip spaces cleanly
+                    tagpos = strlen(Opentagtemp); // 3. Reset to precise string length
                     // Copy to pure tag
                     copyTagPure(Opentagtemp, opentagtemppos, pureOpen, paramOpen);
-
 
                     if (compareRawstr(tagpure, pureOpen, strlen(tagpure), strlen(pureOpen)))
                     {
 
-                        //printf("Found same tag in opentag\n");
+                        // printf("Found same tag in opentag\n");
                         tagStack++; // Increase it one opening tag of same type of start tag is encountered....
                     }
 
@@ -486,13 +498,13 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
 
             if (isEndslashgot == true)
             {
-                //printf("Writing to end tag:%c\n", charecter);
+                // printf("Writing to end tag:%c\n", charecter);
                 *(Endtag + Endtagpos) = charecter;
                 Endtagpos++;
             }
             else
             {
-                //printf("Writing to temp open tag buffer:%c\n", charecter);
+                // printf("Writing to temp open tag buffer:%c\n", charecter);
                 *(Opentagtemp + opentagtemppos) = charecter;
                 opentagtemppos++;
             }
@@ -509,11 +521,10 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
     *(Endtag + Endtagpos) = '\0';
     *(contentprocessed + contentlen) = '\0';
 
-    //printf("Came here out of loop\n");
-    //Wprintf("Content processed:%s\n", contentprocessed);
-    //printf("Tag:%s\n", tag);
-    //printf("Inner html:%s\n", innerHTML);
-    
+    // printf("Came here out of loop\n");
+    // Wprintf("Content processed:%s\n", contentprocessed);
+    // printf("Tag:%s\n", tag);
+    // printf("Inner html:%s\n", innerHTML);
 
     DOMNode *newNode = (DOMNode *)malloc(sizeof(DOMNode));
     newNode->firstChild = NULL;
@@ -589,7 +600,6 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
         free(Opentagtemp);
     }
 }
-
 
 void printDOMTree(DOMNode *node, int level)
 {
