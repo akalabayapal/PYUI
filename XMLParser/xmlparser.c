@@ -262,7 +262,7 @@ void TagParser(char paramsstring[], int size, DOMNode *node)
             if (i < valuesize)
             {
                 node->attrVal[i] = strdup(value[i]);
-                printf("DEBUG:The value is:%s\n", value[i]);
+                //printf("DEBUG:The value is:%s\n", value[i]);
             }
             else
             {
