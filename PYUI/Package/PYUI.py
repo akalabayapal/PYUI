@@ -544,8 +544,8 @@ class Hook:
         self.lock = threading.Lock()
         self.dirty = False
 
-        pyui.thpool.submit(self.__hook_handler,self.q)
-        th = threading.Thread(target=self.__hook_handler,args=(self.q))
+       
+        th = threading.Thread(target=self.__hook_handler,args=(self.q,))
         th.daemon = True
 
         th.start()
