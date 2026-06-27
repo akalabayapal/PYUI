@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 requires-python = ">=3.10"
 name = "pyui-desktop"
-version = "0.5.0.5"
+version = "0.5.0.6"
 authors = [
   { name="Akalabaya Pal", email="akalabaya.2008@proton.me" },
 ]
