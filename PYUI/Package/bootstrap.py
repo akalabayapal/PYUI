@@ -88,8 +88,8 @@ ASYNC_LOOP = None
 
 SysCall = {
 
-    'START':1,
-    'END':0,
+    'START':0,
+    'END':1,
     'BATCH_UPDATE':2,
     'STOP_HOOKS':3,
     'REGISTER_SYSCALL_CALLBACK':4,
@@ -112,6 +112,8 @@ SYSCALL_CALLBACK = {
 UUID_PROCESSED = {}
 
 HOOK_QUEUE = []
+
+is_first = True
 
 ASSIGNED_PORT = queue.Queue(1)
 
@@ -363,6 +365,7 @@ async def Handle_Send(websocket):
                 #print("[Network Thread] Core socket flush successful! Data left the Python runtime layer.")
             except Exception as net_err:
                 print(f"[Network Thread] CRITICAL CRASH DURING SEND: {net_err}")
+                break
 
         elif msg.syscall == SysCall['REGISTER_CALLBACK']:
             
@@ -373,6 +376,7 @@ async def Handle_Send(websocket):
                 #print("[Network Thread] Core socket flush successful! Data left the Python runtime layer.")
             except Exception as net_err:
                 print(f"[Network Thread] CRITICAL CRASH DURING SEND: {net_err}")
+                break
 
         elif msg.syscall == SysCall['UNREGISTER_CALLBACK']:
 
@@ -384,6 +388,7 @@ async def Handle_Send(websocket):
                 #print("[Network Thread] Core socket flush successful! Data left the Python runtime layer.")
             except Exception as net_err:
                 print(f"[Network Thread] CRITICAL CRASH DURING SEND: {net_err}")
+                break
 
         elif msg.syscall == SysCall['CONTENT_GRAB']:
 
@@ -394,6 +399,7 @@ async def Handle_Send(websocket):
                 #print("[Network Thread] Core socket flush successful! Data left the Python runtime layer.")
             except Exception as net_err:
                 print(f"[Network Thread] CRITICAL CRASH DURING SEND: {net_err}")
+                break
 
 
         elif msg.syscall == SysCall['REGISTER_SYSCALL_CALLBACK']:
@@ -417,6 +423,7 @@ async def Handle_Send(websocket):
                 #print("[Network Thread] Core socket flush successful! Data left the Python runtime layer.")
             except Exception as net_err:
                 print(f"[Network Thread] CRITICAL CRASH DURING SEND: {net_err}")
+                break
 
         elif msg.syscall == SysCall['STOP_HOOKS']:
             HOOK_QUEUE.append(msg.msg)
@@ -444,6 +451,7 @@ async def Handle_Send(websocket):
                 #print("[Network Thread] Core socket flush successful! Data left the Python runtime layer.")
             except Exception as net_err:
                 print(f"[Network Thread] CRITICAL CRASH DURING SEND: {net_err}")
+                break
             
 
 
@@ -530,21 +538,42 @@ async def listen_for_messages(websocket):
 
 async def handle_client(websocket: websockets):
     print(f"[WebSocket Server] UI Client connected: {websocket.remote_address}")
+
+    
+
+    # directly send a START command after cleaning queue
+    # Loop until empty
+
+    msg = Message(SysCall['START'],'')
+    SEND_QUEUE.put((SysCall['START'],time.time(),msg))
+
+
     ACTIVE_CONNECTIONS.add(websocket)
+
 
     # try:
     await asyncio.gather(
             listen_for_messages(websocket),
             Handle_Send(websocket)
         )
-    # except websockets.exceptions.ConnectionClosedOK:
-    #     print("[WebSocket Server] UI Client disconnected cleanly.")
-    # except Exception as e:
-    #     print(f"[WebSocket Server] Connection error: {e}")
-    # finally:
-    #     MAIN_THREAD_QUEUE.put(Message(SysCall['END'],""))
-    #     print("All connections closed.....")
-    #     ACTIVE_CONNECTIONS.remove(websocket)
+    
+    # 1. Create individual tasks for the bidirectional pipelines
+    listener_task = asyncio.create_task(listen_for_messages(websocket))
+    sender_task = asyncio.create_task(Handle_Send(websocket))
+
+    # 2. Monitor both tasks. If either fails (e.g., connection drops), drop the whole group
+    done, pending = await asyncio.wait(
+        [listener_task, sender_task],
+        return_when=asyncio.FIRST_COMPLETED
+    )
+
+    # 3. Cleanly cancel the lingering task so it doesn't leave ghost threads
+    for task in pending:
+        task.cancel()
+
+    print("[WebSocket Server] Client connection terminated cleanly. Awaiting reconnection...")
+    ACTIVE_CONNECTIONS.remove(websocket)
+
         
 
 
@@ -567,8 +596,8 @@ def MAIN(PYUIObj:PYUI,window:webview.Window,entrymodule):
     window.evaluate_js(inject(port))
         
 
-    print("Starting communication....")
-    PYUIObj._startCommunication()
+    # print("Starting communication....")
+    # PYUIObj._startCommunication()
 
     print("Handing the control to entry point...")
  

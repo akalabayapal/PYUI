@@ -14,8 +14,8 @@ import warnings
 
 SysCall = {
 
-    'START':1,
-    'END':0,
+    'START':0,
+    'END':1,
     'BATCH_UPDATE':2,
     'STOP_HOOKS':3,
     'REGISTER_SYSCALL_CALLBACK':4,

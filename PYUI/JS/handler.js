@@ -47,6 +47,7 @@ async function computeHmac(message, secretKey) {
 
 
 async function _HandleCallbackSend(uuid, socket) {
+    
     //toSend = "{\"uuid\":\"" + uuid + "\",\"type\":\"CALLBACK\",\"data\":\"\"}";
     toSend = { "uuid": uuid, "type": "CALLBACK", "data": "" };
 
@@ -57,9 +58,10 @@ async function _HandleCallbackSend(uuid, socket) {
 
     //make hmac 
     hmac_code = await computeHmac(sha256_encoded_msg, SECRET_KEY);
-    toSend['sign'] = hmac_code
-
-    socket.send(JSON.stringify(toSend)); //Send the msg back to python runtime
+    toSend['sign'] = hmac_code;
+    GLOBAL_SOCKET.send(JSON.stringify(toSend)); //Send the msg back to python runtime
+    
+    
 }
 async function _HandleGrbContent(uuid, socket, value) {
 
@@ -74,7 +76,7 @@ async function _HandleGrbContent(uuid, socket, value) {
     hmac_code = await computeHmac(sha256_encoded_msg, SECRET_KEY);
     toSend['sign'] = hmac_code
 
-    socket.send(JSON.stringify(toSend)); //Send the msg back to python runtime
+    GLOBAL_SOCKET.send(JSON.stringify(toSend)); //Send the msg back to python runtime
 
 }
 
