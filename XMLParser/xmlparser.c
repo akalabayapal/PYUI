@@ -201,7 +201,7 @@ void TagParser(char paramsstring[], int size, DOMNode *node)
                     if (startchar == content)
                     {
 
-                        printf("Debug:params value recording stopped...\n");
+                        //printf("Debug:params value recording stopped...\n");
                         // stop it
                         isparsingParamValue = false;
                         isparsingParamkey = true;
@@ -226,7 +226,7 @@ void TagParser(char paramsstring[], int size, DOMNode *node)
                 }
                 else
                 {
-                    printf("Debug:value recording started..\n");
+                    //printf("Debug:value recording started..\n");
                     startchar = content; // Store the current char so that we can match it in time of the closing
                     paramskeyinit = true;
                 }
