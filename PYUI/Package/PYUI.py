@@ -13,7 +13,6 @@ import threading
 import warnings
 
 SysCall = {
-
     'START':0,
     'END':1,
     'BATCH_UPDATE':2,
@@ -27,12 +26,120 @@ SysCall = {
     'NEW_FORM_LAUNCH':10,
     'CONTENT_GRAB':11,
     'POLL':12,
-   
-   
 }
 
 CALLBACK_QUEUE_LIST = {}
 THREAD_CALLBACKS = {}
+
+# Thread-Local Storage to automatically track executing callback context
+_thread_context = threading.local()
+
+# ==============================================================================
+# 1. GLOBAL FALLBACK COMMIT ENGINE (For Ungrouped Code)
+# ==============================================================================
+FALLBACK_EXECUTION_QUEUE = queue.Queue()
+
+def _fallback_sequential_worker():
+    """Consumes and processes commits from all ungrouped threads sequentially."""
+    while True:
+        item = FALLBACK_EXECUTION_QUEUE.get()
+        if item == "END":
+            break
+        
+        scope, updates = item
+        if scope == globals: 
+            scope = globals()
+            
+        try:
+            for key, value in updates.items():
+                if isinstance(scope, dict):
+                    scope[key] = value  
+                else:
+                    setattr(scope, key, value)  
+        except Exception as e:
+            print(f"[Fallback Worker Error] Failed to resolve commit: {e}")
+
+_fallback_thread = threading.Thread(target=_fallback_sequential_worker, daemon=True)
+_fallback_thread.start()
+
+
+# ==============================================================================
+# 2. DSU GROUP ENGINE (Serializes both execution and writes for grouped items)
+# ==============================================================================
+class CallbackDSU:
+    def __init__(self):
+        self.parent = {}
+        self.group_queues = {}  # Maps group root -> queue.Queue
+
+    def find(self, item):
+        if item not in self.parent:
+            self.parent[item] = item
+            return item
+        if self.parent[item] == item:
+            return item
+        self.parent[item] = self.find(self.parent[item])  
+        return self.parent[item]
+
+    def union(self, item1, item2):
+        root1 = self.find(item1)
+        root2 = self.find(item2)
+        if root1 != root2:
+            self.parent[root2] = root1
+
+    def ensure_worker_exists(self, root_item):
+        """Spawns a private sequential worker thread for a specific DSU group."""
+        if root_item not in self.group_queues:
+            q = queue.Queue()
+            self.group_queues[root_item] = q
+            
+            def group_commit_worker():
+                # Flag this thread so nested commits are evaluated synchronously
+                _thread_context.is_group_worker = True
+                while True:
+                    item = q.get()
+                    
+                    # If the item is an executable job (the full callback lifecycle)
+                    if callable(item):
+                        try:
+                            item()
+                        except Exception as e:
+                            print(f"[Group Worker Job Error] Execution crashed: {e}")
+                    else:
+                        # Fallback for state transaction tuples
+                        scope, updates = item
+                        if scope == globals: 
+                            scope = globals()
+                        try:
+                            for key, value in updates.items():
+                                if isinstance(scope, dict):
+                                    scope[key] = value
+                                else:
+                                    setattr(scope, key, value)
+                        except Exception as e:
+                            print(f"[Group Worker Error] Failed to resolve commit: {e}")
+                        
+            t = threading.Thread(target=group_commit_worker, daemon=True)
+            t.start()
+        return self.group_queues[root_item]
+
+dsu = CallbackDSU()
+
+def group(*functions):
+    """Binds multiple functions to a shared sequential execution queue."""
+    raw_funcs = [f.__func__ if hasattr(f, '__func__') else f for f in functions]
+    for i in range(len(raw_funcs) - 1):
+        dsu.union(raw_funcs[i], raw_funcs[i+1])
+
+def background(func):
+    """Decorator to offload heavy tasks out of the sequential queue context entirely."""
+    def wrapper(self, *args, **kwargs):
+        raw_func = func.__func__ if hasattr(func, '__func__') else func
+        def thread_target():
+            _thread_context.current_callback = raw_func
+            func(self, *args, **kwargs)
+        t = threading.Thread(target=thread_target, daemon=True)
+        t.start()
+    return wrapper
 
 class Message:
     def __init__(self, syscall, msg=""):
@@ -41,83 +148,69 @@ class Message:
         self.uuid = str(uuid.uuid4()).replace("'", "")
 
 
-
-
-def _callback_handler(callback,q:queue.Queue,obj):
+def _callback_handler(callback, q: queue.Queue, obj):
+    raw_callback = callback.__func__ if hasattr(callback, '__func__') else callback
+    
     while True:
         val = q.get()
-        if val == "END": #break in case STOP signal is recived
+        if val == "END":
             break
+            
+        # Check if this callback belongs to a serialized conflict group
+        if raw_callback in dsu.parent:
+            root = dsu.find(raw_callback)
+            group_queue = dsu.ensure_worker_exists(root)
+            
+            # Wrap the entire lifecycle of the callback into a serializable job unit
+            def execution_job():
+                try:
+                    _thread_context.current_callback = raw_callback
+                    callback(obj, val)
+                except Exception as ex:
+                    print(f"Error in callback execution: {callback.__name__} \n -> Error: {ex}")
+                    obj.End()
+            
+            group_queue.put(execution_job)
+            
         else:
+            # Ungrouped callback executes instantly on its pre-existing thread loop
             try:
-                callback(obj,val) #execute the function
+                _thread_context.current_callback = raw_callback
+                callback(obj, val)
             except Exception as ex:
-                print(f"""Error in callback function:{callback.__name__} \n ->Error:{ex}""")
-                print("==========================================================================")
-                traceback.print_stack()
-                print("==========================================================================")
+                print(f"Error in callback execution: {callback.__name__} \n -> Error: {ex}")
                 obj.End()
 
 def camelCaseConverter(txt: str):
-    # convert a attrib to camelCase
     offset = 0
     length = len(txt)
     formatted = ""
     for j in range(length):
-
         if j + offset >= length:
-            break  # we reached the end
-
+            break
         char = txt[j + offset]
         if char == "-":
             offset += 1
-            # SAFETY CHECK: Ensure the next index isn't out of bounds
             if j + offset < length:
                 formatted += txt[j + offset].capitalize()
         else:
             formatted += char
-
-    return formatted  # Don't forget to return the result!
-
+    return formatted
 
 
-
-
-        
-
-class IdNotFoundError(Exception):
-    pass
-
-class ClassChangeActionNotFoundError(Exception):
-    pass
-
-class CallbackNotFoundError(Exception):
-    pass
-
-class CallbackCollisionError(Exception):
-    pass
-
-class StyleClassNotFoundError(Exception):
-    pass
-
-class UnsafeStringInjectionBLocked(Exception):
-    pass
-
-class AttributeNotFoundError(Exception):
-    pass
-
-class SysCallNotFoundError(Exception):
-    pass
-
-class IdCollisionError(Exception):
-    pass
-
-class IllegalManagedNodeDeletionError(Exception):
-    pass
+class IdNotFoundError(Exception): pass
+class ClassChangeActionNotFoundError(Exception): pass
+class CallbackNotFoundError(Exception): pass
+class CallbackCollisionError(Exception): pass
+class StyleClassNotFoundError(Exception): pass
+class UnsafeStringInjectionBLocked(Exception): pass
+class AttributeNotFoundError(Exception): pass
+class SysCallNotFoundError(Exception): pass
+class IdCollisionError(Exception): pass
+class IllegalManagedNodeDeletionError(Exception): pass
 
 class PYUI:
     def __init__(self,SQ:queue.Queue,MQ:queue.Queue,window,infoDict,syscall):
-      
         self.SQ = SQ
         self.__window:webview.Window = window
         self.tree:PyUILayoutNode = infoDict['layout_tree']
@@ -127,191 +220,163 @@ class PYUI:
         self.MQ = MQ
         self.counter = itertools.count()
         self.__user_Syscall = {'_':0}
+    
+    def commit(self, scope, **updates):
+        """
+        Declaration engine that funnels state mutations safely into serialization lines.
+        Supports '_callback' parameter to target a specific group queue from background tasks.
+        """
+        # Extract explicit callback context if provided, otherwise check thread local storage
+        target_cb = updates.pop('_callback', getattr(_thread_context, 'current_callback', None))
+
+        # If we are already running inside the group worker thread processing a job, 
+        # apply the write immediately to preserve expected top-to-bottom procedural updates.
+        if getattr(_thread_context, 'is_group_worker', False):
+            if scope == globals: 
+                scope = globals()
+            try:
+                for key, value in updates.items():
+                    if isinstance(scope, dict):
+                        scope[key] = value
+                    else:
+                        setattr(scope, key, value)
+            except Exception as e:
+                print(f"[Synchronous Commit Error] Failed to resolve: {e}")
+            return
+
+        transaction = (scope, updates)
+        
+        # Route to the group queue if the context belongs to a DSU group
+        if target_cb and target_cb in dsu.parent:
+            root = dsu.find(target_cb)
+            group_queue = dsu.ensure_worker_exists(root)
+            group_queue.put(transaction)
+        else:
+            FALLBACK_EXECUTION_QUEUE.put(transaction)
 
     def _startCommunication(self):
-        #print(f"[PYUI Engine] Sending START. Queue Memory Address: {id(self.SQ)}")
         msg = Message(SysCall['START'])
         self.SQ.put((SysCall['START'],next(self.counter),msg))
 
     def __ExecuteJS(self,argv:dict,type,ret=False):
-
         json = {"js_type":type,"args":argv}
-
-        
         msg = Message(SysCall['EXECUTE_JS'],json)
         if not ret:
             self.SQ.put((SysCall['EXECUTE_JS'],next(self.counter),msg))
-
         return msg
     
-
     def getAttrib(self,id,attribute):
-        # node:PyUILayoutNode = self.id_map[id]
-        # return node.get(arribute)
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
         q = queue.Queue(1)
         msg = Message(SysCall['CONTENT_GRAB'],{"id":id,"attrib":attribute,"queue":q})
         self.SQ.put((SysCall['CONTENT_GRAB'],next(self.counter),msg))
-
         val = q.get()
         return val
 
-    
     def getTag(self,id):
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        
         node:PyUILayoutNode = self.id_map[id]
         return node.tag
     
     def GetAllAttrib(self,id):
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        
         node:PyUILayoutNode = self.id_map[id]
         return node.attributes()
     
     def set(self,id,attribute,value,ret=False):
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-                                  
         node:PyUILayoutNode = self.id_map[id]
         node.set(attribute,value)
-
-        
         return self.__ExecuteJS({"id":id,"att":attribute,"value":value},"update",ret=ret)
     
-    
     def setStyle(self,id,attribute,value,ret=False):
-    
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        
         if "\"" in  value or "'" in value:
-            raise UnsafeStringInjectionBLocked(f"[Runtime Error Log] The given value is not a valid css value and is unsafe to use.")
-        
+            raise UnsafeStringInjectionBLocked(f"[Runtime Error Log] The given value is unsafe.")
         node:PyUILayoutNode = self.id_map[id]
-
-        #add the style to the python vdom
         node.style[attribute] = value
-
-        #we need to convert the attribute to camelcase
         param = camelCaseConverter(attribute)
-
         return self.__ExecuteJS({"id":id,"att":param,"value":value},'updateStyle',ret=ret)
     
     def changeClass(self,id:str,className:str,action:str,ret=False):
-
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        
         cleaned_action = action.upper().strip()
-        
-        if  not cleaned_action  in ['ADD','TOGGLE','REMOVE']:
-            raise ClassChangeActionNotFoundError(f'[Runtime Error Log] Can not handle:{action} for class')
-
+        if not cleaned_action in ['ADD','TOGGLE','REMOVE']:
+            raise ClassChangeActionNotFoundError(f'[Runtime Error Log] Cannot handle action:{action}')
         
         action = action.lower().strip()
         toRet = self.__ExecuteJS({"id":id,"action":action.upper().strip(),"class":className},"addstyleclass",ret=ret)
-
-        #save the changes in the layout tree
         node:PyUILayoutNode = self.id_map[id]
-
         if cleaned_action == 'ADD':
             if not className in node.style_class_arr:
                 node.style_class_arr[className] = True
-
         elif cleaned_action == 'REMOVE':
             if not className in node.style_class_arr:
-                raise StyleClassNotFoundError(f'[Runtime Error Log] The given class {className} is not found for given id {id}')
-            
+                raise StyleClassNotFoundError(f'[Runtime Error Log] Class {className} not found.')
             del node.style_class_arr[className]
-
         elif cleaned_action == 'TOGGLE':
             if not className in node.style_class_arr:
                 node.style_class_arr[className] = True
             else:
                 del node.style_class_arr[className]
-        
         return toRet
  
     def getClassList(self,id:str):
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        
         node:PyUILayoutNode = self.id_map[id]
-
         return list(node.style_class_arr)
 
-
     def setText(self,id,newText,ret=False):
-    
         if id not in self.id_map:
- 
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-
         node:PyUILayoutNode = self.id_map[id]
         node.set("innerText",newText)
-    
         return self.__ExecuteJS({"id":id,"text":newText},'updateText',ret=ret)
 
     def removeAttrib(self,id,attribute,ret=False):
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        
         if not attribute in self.id_map[id]._attributes and attribute != 'style':
-            raise AttributeNotFoundError(f"Attribute {attribute} not found for id {id}.")
-        
-        
+            raise AttributeNotFoundError(f"Attribute {attribute} not found.")
         return self.__ExecuteJS({"id":id,"att":attribute},'remove',ret=ret)
 
-
     def changeWindow(self,id):
-
         if not id in self.id_map:
-            raise IdNotFoundError(f"[Runtime Error Log] Given ID:{id} is not present in the UI.")
+            raise IdNotFoundError(f"[Runtime Error Log] Given ID:{id} is not present.")
         if id not in self.id_windows:
-            raise KeyError(f'[Runtime Error Log] [PYUI] The given id:{id} not defined in Form layout.')
-        
+            raise KeyError(f'[Runtime Error Log] The given id:{id} not defined.')
         msgList = []
-
         for win in self.id_windows:
             if id == win:
                 msgList.append(self.removeAttrib(win,'style',ret=True))
             else:
                 msgList.append(self.set(win,'style','display:none;',ret=True))
-
         self.sendBatch(msgList)
 
     def getPYUIRawNode(self,id)->PyUILayoutNode:
-
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        
         return self.id_map[id]
-    
 
     def loadForm(self,formName):
         msg = Message(SysCall['NEW_FORM_LAUNCH'],formName)
         self.MQ.put(msg)
         
     def RegisterCallback(self,id,typeOfCallback,callback):
-
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        
         token = id+":"+typeOfCallback
         q = queue.Queue(100)
-
         if token in CALLBACK_QUEUE_LIST:
-            raise CallbackCollisionError("Can not register another event when already existing event registered.")
-        
+            raise CallbackCollisionError("Cannot duplicate event registrations.")
         msg = Message(SysCall['REGISTER_CALLBACK'],{"id":id,"callback_type":typeOfCallback,"callback_queue":q})
-
-        #th = threading.Thread(target=_callback_handler,args=(callback,q,self,))
-        
-        #store all the queue and threads in a list....
         CALLBACK_QUEUE_LIST[token] = {"queue":q,"uuid":msg.uuid}
 
         f = threading.Thread(target=_callback_handler,args=(callback,q,self,))
@@ -319,191 +384,107 @@ class PYUI:
         f.start()
         THREAD_CALLBACKS[token] = f
 
-        #Register the callback to the callback list
         node:PyUILayoutNode = self.id_map[id]
-
-
         node.callbacks[(id,typeOfCallback)] = True
-
         self.SQ.put((SysCall['REGISTER_CALLBACK'],next(self.counter),msg))
-
 
     def UnRegisterCallBack(self,id,typeOfCallback):
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        
         token = id+":"+typeOfCallback
         if not token in CALLBACK_QUEUE_LIST:
-            raise CallbackNotFoundError("Can not remove a non existing Event....")
-        
+            raise CallbackNotFoundError("Cannot remove non-existent event.")
         dat = CALLBACK_QUEUE_LIST[token]
         m = Message(SysCall['UNREGISTER_CALLBACK'],dat["uuid"])
         self.SQ.put((SysCall['UNREGISTER_CALLBACK'],next(self.counter),m))
-
-        #Stop the callback function cleanly
         q:queue.Queue = CALLBACK_QUEUE_LIST[token]['queue']     
         q.put("END") 
-
-
         node:PyUILayoutNode = self.id_map[id]
-
         del node.callbacks[(id,typeOfCallback)]
-
-
-        #unregister the queue from the hashmap
         del CALLBACK_QUEUE_LIST[token]
         
     def End(self):
         msg = Message(SysCall['END'])
         self.SQ.put((SysCall['END'],next(self.counter),msg))
 
-    #Function to register syscall
-
     def RegisterSyscall(self,syscall_name):
-        
         if not syscall_name in self.__user_Syscall:
             self.__user_Syscall[syscall_name] = True
-            print(self.__user_Syscall)
 
     def RemoveSyscall(self,syscall_name):
         if syscall_name in self.__user_Syscall:
-            print("[Debug] Found syscall")
             del self.__user_Syscall[syscall_name]
-            print("[Debug] Syscall deleted")
-
             if syscall_name in CALLBACK_QUEUE_LIST:
                 m = Message(SysCall['UNREGISTER_SYSCALL_CALLBACK'],'')
                 self.SQ.put((SysCall['UNREGISTER_SYSCALL_CALLBACK'],next(self.counter),m))
-
-                #Stop the callback function cleanly
                 q:queue.Queue = CALLBACK_QUEUE_LIST[syscall_name]['queue']     
                 q.put("END") 
-
-
-                #unregister the queue from the hashmap
                 del CALLBACK_QUEUE_LIST[syscall_name]
-            print(self.__user_Syscall)
         else:
-            raise SysCallNotFoundError(f'Can not find syscall:{syscall_name}')
+            raise SysCallNotFoundError(f'Syscall not found: {syscall_name}')
     
     def RegisterSyscallCallback(self,syscall_name,callback):
-
         q = queue.Queue(100)
-
         if syscall_name in CALLBACK_QUEUE_LIST:
-            raise CallbackCollisionError("Can not register another event when already existing event registered.")
-        
-        print("[Debug] Register Callback for Syscall sent to bootstrap")
+            raise CallbackCollisionError("Syscall collision.")
         msg = Message(SysCall['REGISTER_SYSCALL_CALLBACK'],{"callback_queue":q,'name':syscall_name})
         self.SQ.put((SysCall['REGISTER_SYSCALL_CALLBACK'],next(self.counter),msg))
-        #th = threading.Thread(target=_callback_handler,args=(callback,q,self,))
-        
-        #store all the queue and threads in a list....
         CALLBACK_QUEUE_LIST[syscall_name] = {"queue":q,"uuid":msg.uuid}
-        print("[Dubug] Callback Added to callback queue",CALLBACK_QUEUE_LIST)
-
         f = threading.Thread(target=_callback_handler,args=(callback,q,self,))
         f.daemon = True
         f.start()
-
         THREAD_CALLBACKS[syscall_name] = f
 
     def UnSyscallRegisterCallBack(self,syscall_name):
         if not syscall_name in self.__user_Syscall:
-            raise SysCallNotFoundError(f'Given syscall {syscall_name} not found.')
-        
+            raise SysCallNotFoundError(f'Syscall {syscall_name} not found.')
         m = Message(SysCall['UNREGISTER_SYSCALL_CALLBACK'],{'name':syscall_name})
         self.SQ.put((SysCall['UNREGISTER_SYSCALL_CALLBACK'],next(self.counter),m))
-
-        #Stop the callback function cleanly
         q:queue.Queue = CALLBACK_QUEUE_LIST[syscall_name]['queue']     
         q.put("END") 
-
-
-        #unregister the queue from the hashmap
         del CALLBACK_QUEUE_LIST[syscall_name]
      
     def sendSyscall(self,syscall_name,msg):
-    
         if not syscall_name in self.__user_Syscall:
-            raise SysCallNotFoundError(f'Given syscall {syscall_name} not found.')
-        
+            raise SysCallNotFoundError(f'Syscall {syscall_name} not found.')
         m = Message(SysCall['SEND_SYSCALL'],{"msg":msg,'type':syscall_name})
         self.SQ.put((SysCall['SEND_SYSCALL'],next(self.counter),m))
 
-    # Function for sending batch update....
     def sendBatch(self,batch:list[Message]):
-        '''
-        1. Send a list of Message class to the bootstrapper
-        '''
         m = Message(SysCall['BATCH_UPDATE'],batch)
         self.SQ.put((SysCall['BATCH_UPDATE'],next(self.counter),m))
         
-
-    #For handling Unmanaged Nodes
     def RegisterUnmanagedNode(self,id:str,tag:str):
-        
-        warnings.warn("UnManaged Nodes are not checked for existance. Developer must keep track of there existance."
-        "   ->For detailed reference on how to manage custom dynamic nodes check PYUI documentation.")
-
         if id in self.id_map:
-            raise IdCollisionError(f'Can not register unmanaged id:{id} as id of name:{id} already exists')
-        
+            raise IdCollisionError(f'ID {id} already exists.')
         node = PyUILayoutNode(tag)
-
         node.managed = False
-
-        self.id_map[id] = node #add it to id map
-
+        self.id_map[id] = node
 
     def UnRegisterUnmangedNode(self,id:str):
         if id not in self.id_map:
-            raise IdNotFoundError(f'Given id:{id} does not exist,hence can not be unregistered')
-        
+            raise IdNotFoundError(f'ID {id} does not exist.')
         node:PyUILayoutNode = self.id_map[id]
-
         if node.managed == True:
-            raise IllegalManagedNodeDeletionError(f'Managed node id:{id} is not allowed to be unregistered.' \
-            'Warning:Forcefully using JS to delete managed nodes may cause unsync in certain areas in Python and JS runtimes')
-
-        
-    
-        # Remove all callbacks 
+            raise IllegalManagedNodeDeletionError(f'Managed node ID {id} cannot be unregistered.')
         for idofcallback,typeofCallback in node.callbacks:
             self.UnRegisterCallBack(idofcallback,typeofCallback)
-
-        
-        #Delete reference from id map
-
         del self.id_map[id]
-
-        #Issue warning for JS and python inconsistency
-        warnings.warn("The given node with id:{id} has been unregistered from python dom tree.However developer must remove it from JS dom tree manually." \
-        "   -> For reference check PYUI documentation.")
-    #Functions for window control and propperty management inheritatated from pywebview and controlled allotment
-
 
     def setWindowTitle(self,title:str):
         self.__window.set_title(title)
-
     def SetisOnTop(self,isontop):
         self.__window.on_top = isontop
-    
     def GetisOnTop(self) -> bool:
         return self.__window.on_top 
-
     def getX(self) -> int:
         return self.__window.x
-    
     def getY(self) ->int:
         return self.__window.y
-    
     def getResolution(self) -> dict:
         return self.__window.width,self.__window.height
-    
     def Hide(self):
         self.__window.hide()
-    
     def Show(self):
         self.__window.show()
 
@@ -511,30 +492,15 @@ class PYUI:
 class Pipeline:
     def __init__(self):
         self.steps = []
-
     def add(self, target):
-        self.steps.append(
-            target
-        )
-
+        self.steps.append(target)
     def call(self,args:list[tuple]=[]):
         for target,arg in zip(self.steps,args):
-                try:
-                    res = target(*arg,ret=True)
-                except Exception as ex:
-                    print("Error in Hook update:",ex)
-                    traceback.print_stack()
-                    print("Exiting application.")
-                    yield -1
+                try: res = target(*arg,ret=True)
+                except Exception as ex: yield -1
                 yield res
-              
-
-
 
 class Hook:
-    '''
-    PYUI Hooks
-    '''
     def __init__(self,pipe:Pipeline,pyui:PYUI,fps:int=30):
         self.tp = 1/fps
         self.obj:PYUI = pyui
@@ -543,57 +509,36 @@ class Hook:
         self.q = queue.Queue()
         self.lock = threading.Lock()
         self.dirty = False
-
-       
         th = threading.Thread(target=self.__hook_handler,args=(self.q,))
         th.daemon = True
-
         th.start()
-
         msg = Message(SysCall['STOP_HOOKS'],self.q)
         self.obj.SQ.put((SysCall['STOP_HOOKS'],next(self.obj.counter),msg))
-
     
     def __hook_handler(self,msg_bus:queue.Queue):
-
         while True:
             try:
                 msg = msg_bus.get_nowait()
-                if msg == 'END':
-                    break
-            except:
-                pass
-
+                if msg == 'END': break
+            except: pass
             if self.dirty:
-                with self.lock:
-                    args = self.args
+                with self.lock: args = self.args
                 self.flush(args)
                 self.dirty = False
-
                 time.sleep(self.tp)
-            else:
-                self.sleep()
-
-            
+            else: self.sleep()
 
     def flush(self,arg):
         msgs = []
         for j in self.pipe.call(arg):
-            if j == -1:
-                self.obj.End()
+            if j == -1: self.obj.End()
             msgs.append(j)
-        
-
         self.obj.sendBatch(msgs)
-    
-    def sleep(self):
-        time.sleep(self.tp)
-
+    def sleep(self): time.sleep(self.tp)
     def update(self,args:list[tuple]=[]):
         with self.lock:
-            self.args = args #update
+            self.args = args
             self.dirty = True
-        
     def endHook(self):
         time.sleep(self.tp*2)
         self.q.put('STOP')
