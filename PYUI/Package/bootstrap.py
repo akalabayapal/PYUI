@@ -407,7 +407,7 @@ async def Handle_Send(websocket):
             queue_callback = msg.msg['callback_queue']
             name = msg.msg['name']
             SYSCALL_CALLBACK[name] = queue_callback
-            print("[BOOTS] Callback registered:",SYSCALL_CALLBACK)
+            #print("[BOOTS] Callback registered:",SYSCALL_CALLBACK)
 
         elif msg.syscall == SysCall['UNREGISTER_SYSCALL_CALLBACK']:
 

@@ -10,7 +10,7 @@ import traceback
 import time
 import itertools
 import threading
-import warnings
+from functools import wraps
 
 SysCall = {
     'START':0,
@@ -131,12 +131,15 @@ def group(*functions):
         dsu.union(raw_funcs[i], raw_funcs[i+1])
 
 def background(func):
-    """Decorator to offload heavy tasks out of the sequential queue context entirely."""
-    def wrapper(self, *args, **kwargs):
+    """Decorator to offload heavy tasks while preserving thread-local tracking context."""
+    raw_func = func.__func__ if hasattr(func, '__func__') else func
+    
+    @wraps(func)  # Preserves __name__, __doc__, and original properties
+    def wrapper(*args, **kwargs):
         raw_func = func.__func__ if hasattr(func, '__func__') else func
         def thread_target():
             _thread_context.current_callback = raw_func
-            func(self, *args, **kwargs)
+            func(*args, **kwargs)
         t = threading.Thread(target=thread_target, daemon=True)
         t.start()
     return wrapper
