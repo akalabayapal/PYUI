@@ -6,7 +6,7 @@ import os
 import warnings
 
 # Strict lowercase match arrays to preserve structural boundaries
-LAYOUT_CONTAINER_TAGS_DEFAULT = {"main-content", "window", "container", "pyui"}
+LAYOUT_CONTAINER_TAGS_DEFAULT = {"main-content", "window", "container", "pyui","Datagrid","row","ComponentFile"}
 
 HTML_TAG_CONVERSION_MAP_DEFAULT = {
     "main-content": "div",
@@ -20,8 +20,14 @@ HTML_TAG_CONVERSION_MAP_DEFAULT = {
     # --- NEW MEDIA MAPPINGS ---
     "img": "img",
     "video": "video",
-    "audio": "audio"
-}
+    "audio": "audio",
+    # --- DATA GRID --- #
+
+    "Datagrid":"table",
+    "row":"tr",
+    "data":"th"
+
+    }
 
 
 

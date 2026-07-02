@@ -12,7 +12,7 @@ class CompilerSettings:
     "width": set(),
     "height": set(),
     "resizable": set(),
-    "vulkan-accelerated": set(),
+
 
     "main-content": {"default-active-window"},
     "window": {"id", "style-class"},
@@ -25,16 +25,21 @@ class CompilerSettings:
     "style":{"file","type"},
     "Component":{"file","name"},
     "ComponentFile":set(),
-    "Para":{"id", "style-class", "layout", "padding","style-class"},
+    "Para":{"id", "style-class", "layout", "padding","innerText"},
     
     # --- NEW MEDIA TAGS ---
-    "img": {"id", "style-class", "src", "alt", "width", "height"},
-    "video": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted", "poster", "width", "height"},
-    "audio": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted"}
+    "Img": {"id", "style-class", "src", "alt", "width", "height"},
+    "Video": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted", "poster", "width", "height"},
+    "Audio": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted"},
+
+    # ---- DATA GRID -------- #
+    "Datagrid":{"id","style-class"},
+    "row":{"id","style-class"},
+    "data":{"id","style-class","innerText"}
 
 }
     # Strict lowercase match arrays to preserve structural boundaries
-    LAYOUT_CONTAINER_TAGS = {"main-content", "window", "container", "pyui"}
+    LAYOUT_CONTAINER_TAGS = {"main-content", "window", "container", "pyui","Datagrid","row","ComponentFile"}
 
     HTML_TAG_CONVERSION_MAP = {
     "main-content": "div",
@@ -48,7 +53,13 @@ class CompilerSettings:
     # --- NEW MEDIA MAPPINGS ---
     "img": "img",
     "video": "video",
-    "audio": "audio"
+    "audio": "audio",
+    # --- DATA GRID --- #
+
+    "Datagrid":"table",
+    "row":"tr",
+    "data":"th"
+
     }
 
     TAILWIND_ENABLED = False

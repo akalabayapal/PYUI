@@ -51,23 +51,30 @@ TAG_RULES_HASHMAP_DEFAULT = {
     "width": set(),
     "height": set(),
     "resizable": set(),
-    "vulkan-accelerated": set(),
+
+
     "main-content": {"default-active-window"},
     "window": {"id", "style-class"},
-    "Text": {"id", "style-class", "size", "innerText"},
+
+    "Text": {"id", "style-class", "innerText"},
     "Input": {"id", "style-class", "placeholder","type"},
     "Button": {"innerText", "style-class", "id"},
-    "container": {"id", "style-class", "layout", "padding"},
+    "container": {"id", "style-class", "layout"},
     "br":(),
     "style":{"file","type"},
     "Component":{"file","name"},
     "ComponentFile":set(),
-    "Para":{"id", "style-class", "layout", "padding","style-class"},
+    "Para":{"id", "style-class", "layout", "padding","innerText"},
     
     # --- NEW MEDIA TAGS ---
-    "img": {"id", "style-class", "src", "alt", "width", "height"},
-    "video": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted", "poster", "width", "height"},
-    "audio": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted"}
+    "Img": {"id", "style-class", "src", "alt", "width", "height"},
+    "Video": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted", "poster", "width", "height"},
+    "Audio": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted"},
+
+    # ---- DATA GRID -------- #
+    "Datagrid":{"id","style-class"},
+    "row":{"id","style-class"},
+    "data":{"id","style-class","innerText"}
 
 }
 
