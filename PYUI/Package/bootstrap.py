@@ -328,6 +328,12 @@ class MsgHandler:
         return toSend
     
 
+
+    
+
+    
+
+
 async def Handle_Send(websocket):
     is_started = False
     print(f"[WebSocket Core] Polling Loop Active. Queue Memory Address: {id(SEND_QUEUE)}")
@@ -539,24 +545,12 @@ async def listen_for_messages(websocket):
 async def handle_client(websocket: websockets):
     print(f"[WebSocket Server] UI Client connected: {websocket.remote_address}")
 
-    
-
-    # directly send a START command after cleaning queue
-    # Loop until empty
-
+    # Directly send a START command after cleaning queue
     msg = Message(SysCall['START'],'')
     SEND_QUEUE.put((SysCall['START'],time.time(),msg))
 
-
     ACTIVE_CONNECTIONS.add(websocket)
 
-
-    # try:
-    await asyncio.gather(
-            listen_for_messages(websocket),
-            Handle_Send(websocket)
-        )
-    
     # 1. Create individual tasks for the bidirectional pipelines
     listener_task = asyncio.create_task(listen_for_messages(websocket))
     sender_task = asyncio.create_task(Handle_Send(websocket))
@@ -567,12 +561,12 @@ async def handle_client(websocket: websockets):
         return_when=asyncio.FIRST_COMPLETED
     )
 
-    # 3. Cleanly cancel the lingering task so it doesn't leave ghost threads
+    # 3. Cleanly cancel the lingering task so it doesn't leave zombie loops
     for task in pending:
         task.cancel()
 
     print("[WebSocket Server] Client connection terminated cleanly. Awaiting reconnection...")
-    ACTIVE_CONNECTIONS.remove(websocket)
+    ACTIVE_CONNECTIONS.discard(websocket)
 
         
 
@@ -584,6 +578,8 @@ async def handle_client(websocket: websockets):
 # MAIN function last stage of bootloader the control is handed over to the enrty point from here
 #=====================================================================
 def MAIN(PYUIObj:PYUI,window:webview.Window,entrymodule):
+
+    global WINDOW
     
     # Suspends the thread cleanly until the WebSocket loop is allocated
     KERNEL_READY.wait()
@@ -594,10 +590,12 @@ def MAIN(PYUIObj:PYUI,window:webview.Window,entrymodule):
 
     port = ASSIGNED_PORT.get()
     window.evaluate_js(inject(port))
+
+    WINDOW = window
         
 
-    # print("Starting communication....")
-    # PYUIObj._startCommunication()
+    print("Starting communication....")
+    PYUIObj._startCommunication()
 
     print("Handing the control to entry point...")
  
