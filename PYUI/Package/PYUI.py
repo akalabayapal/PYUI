@@ -151,7 +151,7 @@ class Message:
         self.uuid = str(uuid.uuid4()).replace("'", "")
 
 
-def _callback_handler(callback, q: queue.Queue, obj):
+def _callback_handler(callback, q: queue.Queue, obj,args:tuple):
     raw_callback = callback.__func__ if hasattr(callback, '__func__') else callback
     
     while True:
@@ -168,7 +168,7 @@ def _callback_handler(callback, q: queue.Queue, obj):
             def execution_job():
                 try:
                     _thread_context.current_callback = raw_callback
-                    callback(obj, val)
+                    callback(obj, val,*args)
                 except Exception as ex:
                     print(f"Error in callback execution: {callback.__name__} \n -> Error: {ex}")
                     obj.End()
@@ -179,7 +179,7 @@ def _callback_handler(callback, q: queue.Queue, obj):
             # Ungrouped callback executes instantly on its pre-existing thread loop
             try:
                 _thread_context.current_callback = raw_callback
-                callback(obj, val)
+                callback(obj, val,*args)
             except Exception as ex:
                 print(f"Error in callback execution: {callback.__name__} \n -> Error: {ex}")
                 obj.End()
@@ -372,7 +372,11 @@ class PYUI:
         msg = Message(SysCall['NEW_FORM_LAUNCH'],formName)
         self.MQ.put(msg)
         
-    def RegisterCallback(self,id,typeOfCallback,callback):
+    def RegisterCallback(self,id:str,typeOfCallback:str,callback,args:tuple=()):
+
+        typeOfCallback = typeOfCallback.strip()
+
+
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
         token = id+":"+typeOfCallback
@@ -382,7 +386,7 @@ class PYUI:
         msg = Message(SysCall['REGISTER_CALLBACK'],{"id":id,"callback_type":typeOfCallback,"callback_queue":q})
         CALLBACK_QUEUE_LIST[token] = {"queue":q,"uuid":msg.uuid}
 
-        f = threading.Thread(target=_callback_handler,args=(callback,q,self,))
+        f = threading.Thread(target=_callback_handler,args=(callback,q,self,args,))
         f.daemon = True
         f.start()
         THREAD_CALLBACKS[token] = f
@@ -391,7 +395,10 @@ class PYUI:
         node.callbacks[(id,typeOfCallback)] = True
         self.SQ.put((SysCall['REGISTER_CALLBACK'],next(self.counter),msg))
 
-    def UnRegisterCallBack(self,id,typeOfCallback):
+    def UnRegisterCallBack(self,id:str,typeOfCallback:str):
+
+        typeOfCallback = typeOfCallback.strip()
+
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
         token = id+":"+typeOfCallback
@@ -405,6 +412,11 @@ class PYUI:
         node:PyUILayoutNode = self.id_map[id]
         del node.callbacks[(id,typeOfCallback)]
         del CALLBACK_QUEUE_LIST[token]
+
+    def ReRegisterCallback(self,id,typeOfCallback,callback,args:tuple=()):
+
+        self.UnRegisterCallBack(id,typeOfCallback)
+        self.RegisterCallback(id,typeOfCallback,callback,args)
         
     def End(self):
         msg = Message(SysCall['END'])
@@ -426,14 +438,14 @@ class PYUI:
         else:
             raise SysCallNotFoundError(f'Syscall not found: {syscall_name}')
     
-    def RegisterSyscallCallback(self,syscall_name,callback):
+    def RegisterSyscallCallback(self,syscall_name,callback,args:tuple=()):
         q = queue.Queue(100)
         if syscall_name in CALLBACK_QUEUE_LIST:
             raise CallbackCollisionError("Syscall collision.")
         msg = Message(SysCall['REGISTER_SYSCALL_CALLBACK'],{"callback_queue":q,'name':syscall_name})
         self.SQ.put((SysCall['REGISTER_SYSCALL_CALLBACK'],next(self.counter),msg))
         CALLBACK_QUEUE_LIST[syscall_name] = {"queue":q,"uuid":msg.uuid}
-        f = threading.Thread(target=_callback_handler,args=(callback,q,self,))
+        f = threading.Thread(target=_callback_handler,args=(callback,q,self,args,))
         f.daemon = True
         f.start()
         THREAD_CALLBACKS[syscall_name] = f

@@ -1,3 +1,4 @@
+
 var GLOBAL_SOCKET = null;
 
 
@@ -18,8 +19,9 @@ function connectSocket(port) {
     // 3. Catch and parse incoming messages from Python as JSON objects
     socket.onmessage = (event) => {
 
+
+
         var data = JSON.parse(event.data);
-        
         handler.evaluateMsg(data);
 
     };

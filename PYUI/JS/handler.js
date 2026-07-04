@@ -1,3 +1,5 @@
+
+
 var SECRET_KEY = null;
 var GLOBAL_CUSTOM_SYSCALL_MAP = {}; // Js object to store all the custom syscalls 
 
@@ -47,30 +49,30 @@ async function computeHmac(message, secretKey) {
 
 
 async function _HandleCallbackSend(uuid, socket) {
-    
+
     //toSend = "{\"uuid\":\"" + uuid + "\",\"type\":\"CALLBACK\",\"data\":\"\"}";
-    toSend = { "uuid": uuid, "type": "CALLBACK", "data": "" };
+    var toSend = { "uuid": uuid, "type": "CALLBACK", "data": "" };
 
     send_str = JSON.stringify(toSend);
 
     //Get the sha-256 encoded string.
-    sha256_encoded_msg = await standardSha256(send_str);
+    var sha256_encoded_msg = await standardSha256(send_str);
 
     //make hmac 
-    hmac_code = await computeHmac(sha256_encoded_msg, SECRET_KEY);
+    var hmac_code = await computeHmac(sha256_encoded_msg, SECRET_KEY);
     toSend['sign'] = hmac_code;
     GLOBAL_SOCKET.send(JSON.stringify(toSend)); //Send the msg back to python runtime
-    
-    
+
+
 }
 async function _HandleGrbContent(uuid, socket, value) {
 
-    toSend = { "uuid": uuid, "type": "GRAB_CONTENT", "data": value };
+    var toSend = { "uuid": uuid, "type": "GRAB_CONTENT", "data": value };
 
-    send_str = JSON.stringify(toSend);
+    var send_str = JSON.stringify(toSend);
 
     //Get the sha-256 encoded string.
-    sha256_encoded_msg = await standardSha256(send_str);
+    var sha256_encoded_msg = await standardSha256(send_str);
 
     //make hmac 
     hmac_code = await computeHmac(sha256_encoded_msg, SECRET_KEY);
@@ -138,15 +140,19 @@ async function bind(syscall, callback) {
 }
 
 function generateUUID() {
-  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-  );
+    return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+    );
 }
 
 async function sendSyscall(syscall, msg) {
+    if(!syscall)
+    {
+        return;
+    }
     var call = GLOBAL_CUSTOM_SYSCALL_MAP[syscall];
     if (call) {
-        var toSend = { "data": msg, "type": syscall,"uuid":generateUUID() };
+        var toSend = { "data": msg, "type": syscall, "uuid": generateUUID() };
 
         send_str = JSON.stringify(toSend);
 
@@ -181,7 +187,7 @@ class Msghandler {
         var type = jsonMessage.type;
         var uuid = jsonMessage.uuid;
 
-        
+
 
         if (!(uuid in this.processed_map) && await verifyIncomingMessage(jsonMessage)) {
             if (type == "EXECUTE_ONLY") {
@@ -195,25 +201,33 @@ class Msghandler {
             }
 
             else if (type == "REGISTER_CALLBACK") {
-
                 var id = jsonMessage.id;
                 var typeCallback = jsonMessage.callback_type;
                 var wrapper = this.registerCallback(id, typeCallback, uuid);
 
                 var container = { wrap: wrapper, type: typeCallback, Eleid: id };
-                
-
-            
+                this.callBackWrappers[uuid] = container;
+                //console.log("Callback wrappers:",JSON.stringify(this.callBackWrappers));
             }
             else if (type == "UNREGISTER_CALLBACK") {
-                var uuid_callback = jsonMessage.id;
-                cont = this.callBackWrappers[uuid_callback];
-                id = cont.Eleid;
-                type = cont.type;
-                wrap = cont.wrap;
-                document.getElementById(id).removeEventListener(type, wrap);
 
-                delete this.callBackWrappers[uuid_callback];
+                //console.log("Callback wrappers:",JSON.stringify(this.callBackWrappers));
+
+                try {
+
+                    var uuid_callback = jsonMessage.id;
+                    const cont = this.callBackWrappers[uuid_callback];
+                    const id = cont.Eleid;
+                    const type = cont.type;
+                    const wrap = cont.wrap;
+                    document.getElementById(id).removeEventListener(type, wrap);
+
+                    delete this.callBackWrappers[uuid_callback];
+                }
+                catch(ex){
+                    console.log("[Error] Can not remove callback",ex);
+
+                }
             }
             else if (type == "GRAB_CONTENT") {
                 var id = jsonMessage.id;
@@ -288,18 +302,17 @@ class Msghandler {
             var id = args.id;
             var value = args.value;
             var att = args.att;
-            
-            if(att == 'value')
-            {
+
+            if (att == 'value') {
                 document.getElementById(id).value = value; // We need to handle the value separately
             }
-            else{
-            var ele = document.getElementById(id);
+            else {
+                var ele = document.getElementById(id);
 
-            if (ele) {
-                ele.setAttribute(att, value);
+                if (ele) {
+                    ele.setAttribute(att, value);
+                }
             }
-        }
 
         }
         else if (execution_type == 'updateStyle') {

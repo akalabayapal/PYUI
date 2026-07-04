@@ -282,9 +282,9 @@ class MsgHandler:
     async def UNREGISTER_CALLBACK(msg,isbatch=False):
         uid = msg.msg #get id of the callback
         if isbatch:
-            toSend = {"uuid": msg.uuid, "id": uid,"callback_type":'UNREGISTER_CALLBACK'}
+            toSend = {"uuid": msg.uuid, "id": uid,"type":'UNREGISTER_CALLBACK'}
         else:
-            toSend = {"uuid": msg.uuid, "id": uid,"callback_type":'UNREGISTER_CALLBACK',"count":next(global_counter)}
+            toSend = {"uuid": msg.uuid, "id": uid,"type":'UNREGISTER_CALLBACK',"count":next(global_counter)}
         
         del CALLBACK_HASHMAP[uid]
 
