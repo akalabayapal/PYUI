@@ -179,6 +179,21 @@ def processParams(v:str,props:dict):
 # 4. THE COMPILER BAKE & INDEX PASS
 # =========================================================
 def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,project_dir:str,mangling="",processProps={},isbuildscript=False,temp_cache={},TAG_RULES_HASHMAP={}) -> PyUILayoutNode:
+    
+    '''
+    c_node_ptr: C Xml parser node pointer
+    id_windows: Id of the windiws
+    project_dir: Searches for the relative paths like components JS css from this path
+    mangling: Used inside the components
+    processprops: The props for components
+
+    isbuildscript --> True --> uses the temp_cache important for the HotReload for cache storing only inside one build cycle
+    |
+    ----------------> False --> uses the global cache for the components storage/cache
+    
+    '''
+    
+    
     if not c_node_ptr:
         return None
     
@@ -239,6 +254,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
 
         mangling = name
        
+
         if isbuildscript:
             if file in temp_cache:
                 component_c_ptr,import_state = temp_cache[file]

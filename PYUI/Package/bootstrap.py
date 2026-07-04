@@ -22,6 +22,7 @@ import hmac
 import hashlib
 import secrets
 from PYUI.Package.PYUI import PYUI
+import pickle
 
 class UnkownSyscallUpdate(Exception):
     pass
@@ -698,9 +699,17 @@ def BootStrapper(entryfile):
 
     router = ConsoleRouter()
     window = webview.create_window(**sanitized_settings,js_api=router)
+
+    #load the config
+    config = pickle.load(
+        open(
+            'settings.bin','rb'
+        )
+    )
+    
     
 
-    PYUIObj = KernelProxy(PYUI(SQ=SEND_QUEUE,MQ=MAIN_THREAD_QUEUE,window=window,infoDict=load,syscall=SysCall))
+    PYUIObj = KernelProxy(PYUI(SQ=SEND_QUEUE,MQ=MAIN_THREAD_QUEUE,window=window,infoDict=load,syscall=SysCall,config=config))
 
     # 1. Spin up the background MAIN thread (Back to a standard thread wrapper!)
     print("[Main Thread] Launching MAIN program thread...")

@@ -11,6 +11,12 @@ import time
 import itertools
 import threading
 from functools import wraps
+from PYUI.compiler import processParams
+import pickle
+import os
+import warnings
+from PYUI.settings import  CompilerSettings
+import json
 
 SysCall = {
     'START':0,
@@ -213,7 +219,7 @@ class IdCollisionError(Exception): pass
 class IllegalManagedNodeDeletionError(Exception): pass
 
 class PYUI:
-    def __init__(self,SQ:queue.Queue,MQ:queue.Queue,window,infoDict,syscall):
+    def __init__(self,SQ:queue.Queue,MQ:queue.Queue,window,infoDict,syscall,config):
         self.SQ = SQ
         self.__window:webview.Window = window
         self.tree:PyUILayoutNode = infoDict['layout_tree']
@@ -223,7 +229,12 @@ class PYUI:
         self.MQ = MQ
         self.counter = itertools.count()
         self.__user_Syscall = {'_':0}
+        self.config:CompilerSettings = config
+        
+        self.RegisterSyscall('ADD_NODE_END')
+        self.RegisterSyscall('REM_NODE')
     
+
     def commit(self, scope, **updates):
         """
         Declaration engine that funnels state mutations safely into serialization lines.
@@ -502,6 +513,148 @@ class PYUI:
         self.__window.hide()
     def Show(self):
         self.__window.show()
+
+class Component:
+
+    def __init__(self,obj:PYUI,componentName:str):
+        '''
+        To load a component
+        '''
+        self.component_name = componentName.strip()+'.bin'
+        self.pyui_instance = obj
+
+        self.load = pickle.load(
+            open(
+            os.path.join('compiled_components',componentName.strip()+'.bin')
+            ,'rb')
+            )
+        self.tree = self.load['layout_tree']
+        self.idList = self.load['id_index_map']
+
+        self.component_list = {}
+
+        
+
+    def __convert_node_to_html(self,node,HTML_TAG_CONVERSION_MAP:dict,LAYOUT_CONTAINER_TAGS:dict,props_dict:dict,prefix_name:str='') -> str:
+        if not node:
+            return ""
+
+        # CRITICAL: Always enforce lower-casing immediately at entry point
+        tag_lower = node.tag.lower().strip()
+
+        if tag_lower == 'componentfile':
+            tag_lower = node.tag.strip()
+
+
+        #IMPORTANT:No styles tag after main-content.if found it will trigger warning
+        if tag_lower == "style":
+            warnings.warn("Styles inside and below main-content are not evaluated.Please link them out of main content and 'above it'",SyntaxWarning)
+
+        html_tag = HTML_TAG_CONVERSION_MAP.get(tag_lower, tag_lower)
+
+        attr_parts = []
+        inner_text = "" 
+
+        element_id = getattr(node, 'id', None)
+        if element_id:
+            if prefix_name.strip() != '':
+                attr_parts.append(f'id="{prefix_name+'_'+element_id}"')
+            else:
+                attr_parts.append(f'id="{element_id}"')
+
+
+        # Process attributes smoothly
+        for k, v in node.attributes().items():
+            k_lower = k.lower().strip()
+
+            if k_lower == "id":
+                continue
+
+            v = processParams(v,props_dict)
+
+            if k_lower == "innertext":
+                inner_text = v
+            elif k_lower == "style-class":
+                attr_parts.append(f'class="{v}"')
+            else:
+                attr_parts.append(f'{k}="{v}"')
+
+        if tag_lower == "window":
+            raise RuntimeError('windows are not allowed inside components')
+
+        attr_str = " " + " ".join(attr_parts) if attr_parts else ""
+
+        # CASE A: Leaf Widgets - Close immediately
+        if tag_lower not in LAYOUT_CONTAINER_TAGS:
+            return f"<{html_tag}{attr_str}>{inner_text}</{html_tag}>\n"
+
+        # CASE B: Layout Containers - Process internal tree nodes explicitly before closing
+        child_content = ""
+        current_child = node.firstChild
+        while current_child:
+            child_content += self.__convert_node_to_html(current_child,LAYOUT_CONTAINER_TAGS=LAYOUT_CONTAINER_TAGS,HTML_TAG_CONVERSION_MAP=HTML_TAG_CONVERSION_MAP,props_dict=props_dict,prefix_name=prefix_name)
+            current_child = current_child.nextSibling
+
+        # Children are now safely locked inside the parent tag container!
+        return f"<{html_tag}{attr_str}>\n{child_content}</{html_tag}>\n"
+    
+    def __addComponent(self,parentID:str,mode,**props):
+
+        if mode == 'after':
+            if parentID not in self.component_list:
+                raise IdNotFoundError(f'Given component id:{parentID} is not found.')
+
+        else:
+            if parentID not in self.pyui_instance.id_map:
+                raise IdNotFoundError(f'Given parent id:{parentID} is not found.')
+
+        unique_id = uuid.uuid4().hex
+        
+        string_html = self.__convert_node_to_html(
+            self.tree,
+            self.pyui_instance.config.HTML_TAG_CONVERSION_MAP,
+            self.pyui_instance.config.LAYOUT_CONTAINER_TAGS,
+            props,
+            unique_id
+        )
+
+        string_html = f"<div id={unique_id}>{string_html}</div>"
+
+        self.pyui_instance.RegisterUnmanagedNode(unique_id,'div')
+        # registered nodes
+        for element_id in self.idList:
+            self.pyui_instance.RegisterUnmanagedNode(unique_id+'_'+element_id,self.idList[element_id].tag)
+
+
+        #send syscall to add the node
+        toSend = {'parent_id':parentID,'html_to_add':string_html,"mode":mode}
+        self.pyui_instance.sendSyscall('ADD_NODE_END',json.dumps(toSend))
+
+        self.component_list[unique_id] = True
+
+        return unique_id
+    
+    def appendComponent(self,parentID:str,**props):
+        return self.__addComponent(parentID,'append',**props)
+    
+    def addComponentTop(self,parentID:str,**props):
+        return self.__addComponent(parentID,'top',**props)
+
+    def addComponentAfter(self,preceedingID:str,**props):
+        return self.__addComponent(preceedingID,'after',**props)
+    
+    def removeComponent(self,node_id:str):
+
+        if not node_id in self.component_list:
+            raise IdNotFoundError(f'The given node id:{node_id} not found or is out of scope of this class.')
+        
+        toSend = {"id":node_id}
+        
+        self.pyui_instance.sendSyscall('REM_NODE',json.dumps(toSend))
+        
+
+        
+
 
 
 class Pipeline:

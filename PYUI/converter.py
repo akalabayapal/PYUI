@@ -136,8 +136,8 @@ def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=No
     <title>Application View</title>
     <link href="styles/global.css" rel="stylesheet">
     """+stylesheet_html+"""
-    <script src='JS/handler.js'></script>
-    <script src='JS/connection.js'></script>
+    <script src='JS/handler.js' defer></script>
+    <script src='JS/connection.js' defer></script>
     <script src='JS/"""+base_name.replace('html','')+"""js'></script>
     </head>
 """+body_content+"""

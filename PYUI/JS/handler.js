@@ -146,8 +146,7 @@ function generateUUID() {
 }
 
 async function sendSyscall(syscall, msg) {
-    if(!syscall)
-    {
+    if (!syscall) {
         return;
     }
     var call = GLOBAL_CUSTOM_SYSCALL_MAP[syscall];
@@ -224,8 +223,8 @@ class Msghandler {
 
                     delete this.callBackWrappers[uuid_callback];
                 }
-                catch(ex){
-                    console.log("[Error] Can not remove callback",ex);
+                catch (ex) {
+                    console.log("[Error] Can not remove callback", ex);
 
                 }
             }
@@ -355,3 +354,80 @@ class Msghandler {
     }
 
 }
+
+// Handler for adding a node
+
+/**
+ * TO add a custom node 
+ * @param {string} parent_id - the id of the parent
+ * @param {string} html_to_add - the html node
+ * @param {string} mode - mode of addition append | top } after
+ */
+function addNode(parent_id, html_to_add,mode) {
+
+
+    // 1. Select the parent node
+    const parentElement = document.getElementById(parent_id);
+
+    // 2. Define your raw HTML string
+    const rawHTML = html_to_add;
+
+    // 3. Append the raw HTML directly
+    if(mode === 'append')
+    {
+        parentElement.insertAdjacentHTML('beforeend', rawHTML);
+    }
+    else if(mode === 'top')
+    {
+        parentElement.insertAdjacentHTML('afterbegin', rawHTML);
+
+    }
+    else if(mode == 'after'){
+                parentElement.insertAdjacentHTML('afterend', rawHTML);
+    }
+    
+}
+
+function remNode(node_id){
+
+    const element = document.getElementById(node_id);
+    element.remove();
+}
+
+/**
+ * 
+ * @param {string} msg - the json message from the python runtime format:{'parent_id','html_to_add'}
+ */
+function addNodeHandler(msg){
+
+
+    const message = JSON.parse(msg.msg);
+
+    const parent_id = message.parent_id;
+    const html_to_add = message.html_to_add;
+    const mode = message.mode;
+
+
+
+
+    addNode(
+        parent_id,
+        html_to_add,
+        mode
+    );
+}
+
+/**
+ * 
+ * @param {string} msg - The message string json
+ */
+function remNodeHandler(msg){
+
+    const message = JSON.parse(msg.msg);
+
+    remNode(message.id);
+
+}
+
+bind('ADD_NODE_END',addNodeHandler);
+bind('REM_NODE',remNodeHandler);

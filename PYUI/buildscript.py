@@ -12,14 +12,17 @@ import subprocess
 import PYUI.settings
 from pathlib import Path
 import stat
+import pickle
 
 BUILD_FOLDERS = [
+    'compiled_components', # for the compiled components storage
     'compiled_layouts', #bin compiled layouts for instant loading
     'code', #Contains the python codes.Bootstraper handles control over main.py via a thread. and pywebview runs in another thread
     'layouts', #pure html layouts for pywebview to load nameing of compiled_layout and layout must match for rendering to work
     'layouts\\sources', #contains media images,excess graphics needed to run the program.is accessed by the htmls
     'layouts\\styles', #styles needed for the html to run.
     'layouts\\JS' #contains the required runtime JS required for the internal framework working
+
 ]
 
 DEBUG_TYPE = {
@@ -139,8 +142,25 @@ def build(PROJECT_DIR:str,TAILWIND_EXE:str,target=None,isexe=None,name=None,is_c
             print_typed("The convertion of xml->html done and layout saved to -> "+os.path.join(REQ_FOLDERS['layouts'],os.path.basename(f).replace('.xml','')+'.html'))
 
 
+    #=========================================
+    # 5. Compile the components into the compiled_components folder
+    #=========================================
+
+    COMPONENTS_FOLDER = os.path.join(PROJECT_DIR,'layouts','components')
+    for f in os.scandir(COMPONENTS_FOLDER):
+            PYUI.compiler.compile_layout(f,os.path.join(REQ_FOLDERS['compiled_components'],os.path.basename(f).replace('.xml','')+'.bin'),PROJECT_DIR,TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP)
+
+    # also store the settings in a pickle
+    SETTINGS_FILE = os.path.join(REQ_FOLDERS['.'],'settings.bin')
+
+    pickle.dump(
+         config,
+         open(SETTINGS_FILE,'wb')
+    )
+    
+
     # =========================================
-    # 3. Compile the whole HTML folder into a single global.css file
+    # 4. Compile the whole HTML folder into a single global.css file(for tailwind)
     # =========================================
     if config.TAILWIND_ENABLED:
         print("==================================================================================")
@@ -162,7 +182,7 @@ def build(PROJECT_DIR:str,TAILWIND_EXE:str,target=None,isexe=None,name=None,is_c
 
     print("==================================================================================")
     #==========================================
-    #4.Copy the css files to the styles folder
+    #5.Copy the css files to the styles folder
     #==========================================
 
     if config.HOOK_MAP['STYLE_COPY']:
@@ -180,7 +200,7 @@ def build(PROJECT_DIR:str,TAILWIND_EXE:str,target=None,isexe=None,name=None,is_c
     print("==================================================================================")
 
     # =============================================
-    # 5.Copy the Package files to the build directory
+    # 6.Copy the Package files to the build directory
     # ==============================================
 
     if config.HOOK_MAP['PACKAGE_COPY']:
@@ -232,7 +252,7 @@ def build(PROJECT_DIR:str,TAILWIND_EXE:str,target=None,isexe=None,name=None,is_c
          print("The compiled project saved at -->",os.path.abspath(TEMP_FOLDER))
          return os.path.abspath(TEMP_FOLDER)
     #=================================================================
-    # For Building Exe
+    # 7.For Building Exe
     #=================================================================
 
     #Check target and mkdir if folder do not exists
