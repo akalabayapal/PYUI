@@ -12,12 +12,26 @@ class CompilerSettings:
     "width": set(),
     "height": set(),
     "resizable": set(),
+    "x":set(),
+    "y":set(),
+    "fullscreen":set(),
+    "hidden":set(),
+    "frameless":set(),
+    "easy_drag":set(),
+    "shadow":set(), # windows only feature
+    "focus":set(), #default is true, false:non-focusable window
+    "minimized":set(),
+    "maximized":set(),
+    "on_top":set(),
+    "confirm_close":set(),
+    "background_color":set(),
+    "text_select":set(),
+
 
 
     "main-content": {"default-active-window"},
     "window": {"id", "style-class"},
 
-    "Text": {"id", "style-class", "innerText"},
     "Input": {"id", "style-class", "placeholder","type"},
     "Button": {"innerText", "style-class", "id"},
     "container": {"id", "style-class", "layout"},
@@ -25,7 +39,22 @@ class CompilerSettings:
     "style":{"file","type"},
     "Component":{"file","name"},
     "ComponentFile":set(),
-    "Para":{"id", "style-class", "layout", "padding","innerText"},
+    
+    "Selector":{"id","style-class"},
+
+    # --- TEXT TAGS ---
+    "Text": {"id", "style-class", "innerText"},
+    "Para":{"id", "style-class","innerText"},
+    "h1":{"id", "style-class", "innerText"},
+    "h2":{"id", "style-class", "innerText"},
+    "h3":{"id", "style-class", "innerText"},
+    "h4":{"id", "style-class", "innerText"},
+    "label":{"id", "style-class", "innerText"},
+    
+
+
+
+
     
     # --- NEW MEDIA TAGS ---
     "Img": {"id", "style-class", "src", "alt", "width", "height"},
@@ -39,7 +68,7 @@ class CompilerSettings:
 
 }
     # Strict lowercase match arrays to preserve structural boundaries
-    LAYOUT_CONTAINER_TAGS = {"main-content", "window", "container", "pyui","Datagrid","row","ComponentFile"}
+    LAYOUT_CONTAINER_TAGS = {"main-content", "window", "container", "pyui","Datagrid","row","ComponentFile","Selector"}
 
     HTML_TAG_CONVERSION_MAP = {
     "main-content": "div",
@@ -50,6 +79,14 @@ class CompilerSettings:
     "input": "input",
     "br": "br",
     "Para":"p",
+    "Selector":"select",
+
+    # --- TEXT TAGS ---
+    "h1":"h1",
+    "h2":"h2",
+    "h3":"h3",
+    "h4":"h4",
+    "label":"label",
     # --- NEW MEDIA MAPPINGS ---
     "img": "img",
     "video": "video",

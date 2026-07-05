@@ -709,4 +709,4 @@ class Hook:
             self.dirty = True
     def endHook(self):
         time.sleep(self.tp*2)
-        self.q.put('STOP')
+        self.q.put('END')

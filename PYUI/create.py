@@ -56,7 +56,7 @@ print_typed("Project Folder Structure Generation Done")
 
 # 1. copy the index.py to the code folder
 print("==================================================================================")
-print_typed("Boilerplate Template is generated" \
+print_typed("Boilerplate Template is generated \n" \
 "   -> code/index.py \n" \
 "   -> layouts/styles/index.css \n" \
 "   -> layouts/index.xml")

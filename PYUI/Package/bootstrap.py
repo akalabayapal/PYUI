@@ -339,13 +339,7 @@ async def Handle_Send(websocket):
     is_started = False
     print(f"[WebSocket Core] Polling Loop Active. Queue Memory Address: {id(SEND_QUEUE)}")
     while True:
-        try:
-            # 1. Attempt to grab an item instantly without checking .empty()
-            priority,time,msg = SEND_QUEUE.get_nowait()
-        except queue.Empty:
-            # 2. If the queue is truly empty, yield control to the loop immediately
-            await asyncio.sleep(0.016)  # ~60fps poll interval
-            continue
+        priority, timestamp, msg = await ASYNC_LOOP.run_in_executor(None, SEND_QUEUE.get)
 
         if msg.syscall == SysCall['START'] and not  is_started:
             print("START command received...")

@@ -231,7 +231,8 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
             k:str = c_node.attrKey[i].decode('utf-8').strip()
             v = c_node.attrVal[i].decode('utf-8').strip()
         
-
+            if mangling != '':
+                v = processParams(v,processProps)
             if k == "file":
                 f = os.path.join(project_dir,'layouts','components',v)
                 if os.path.exists(f):
@@ -242,7 +243,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
                         f"-> Given include:{f} can not be resolved correctly."
                         )
             elif k == "name":
-                name = v
+                    name = v
     
             processProps[k] = v #for parsing 
         
@@ -317,7 +318,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
                 last_sibling = last_sibling.nextSibling
             
             # Stitch the parent's remaining layout tags right onto the end of the component chain
-            last_sibling.nextSibling = bake_strict_c_tree_to_python(sibling_ptr, id_windows, id_index_map, project_dir, mangling='',isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP)
+            last_sibling.nextSibling = bake_strict_c_tree_to_python(sibling_ptr, id_windows, id_index_map, project_dir, mangling=name,processProps=processProps,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP)
 
         #Change the cache back to done processing back to normal
         if isbuildscript:

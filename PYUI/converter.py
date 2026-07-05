@@ -116,7 +116,7 @@ def herf_resolver(file_name,project_root_dir):
 
     return os.path.join("styles",file_name)
 
-def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=None,LAYOUT_TAGS:dict=None) -> str:
+def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=None,LAYOUT_TAGS:dict=None,return_stylesheets=False) -> str:
     STYLEHEETS = []
     """Isolates layout from metadata and generates the clean boilerplate webpage."""
     main_content_node,default_active_window = find_main_content_node(root_node,style_sheets=STYLEHEETS)
@@ -128,7 +128,7 @@ def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=No
     for sheet in STYLEHEETS:
         stylesheet_html += f"<link href=\"{herf_resolver(sheet,project_dir)}\" rel=\"stylesheet\">"
 
-    return """<!DOCTYPE html>
+    ret_str = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -144,12 +144,41 @@ def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=No
 </html>
 """
 
+    if return_stylesheets:
+        return ret_str,STYLEHEETS
+    else:
+        return ret_str
 
-def save_html_file(node: PyUILayoutNode, file_path: str,project_dir:str,HTML_MAP=None,LAYOUT_TAGS=None):
+
+def save_html_file(node: PyUILayoutNode, file_path: str,project_dir:str,HTML_MAP=None,LAYOUT_TAGS=None,return_style_path=False):
     if HTML_MAP == None:
         HTML_MAP = HTML_TAG_CONVERSION_MAP_DEFAULT
     if LAYOUT_TAGS == None:
         LAYOUT_TAGS = LAYOUT_CONTAINER_TAGS_DEFAULT
-    html_content = generate_full_html_document(node,project_dir,os.path.basename(file_path),HTML_MAP=HTML_MAP,LAYOUT_TAGS=LAYOUT_TAGS)
-    with open(file_path, 'w', encoding='utf-8') as f:
-        f.write(html_content)
+
+    toRet = generate_full_html_document(
+        node,
+        project_dir,
+        os.path.basename(file_path),
+        HTML_MAP=HTML_MAP,
+        LAYOUT_TAGS=LAYOUT_TAGS,
+        return_stylesheets=return_style_path)
+    
+    if return_style_path:
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(toRet[0])
+
+        return toRet[1]
+
+    else:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(toRet)
+        
+
+
+
+
+    
+
+    

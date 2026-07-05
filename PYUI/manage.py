@@ -85,6 +85,32 @@ def calculate_md5(file_path):
     # Return the final hexadecimal string
     return md5_hash.hexdigest()
 
+def load_layout(file,bin_file,new):
+    print("[Main Thread] Parsing binary environment layout...")
+    
+    try:
+        load = pickle.load(open(bin_file, 'rb'))
+
+        settings_map = load['form_settings']
+        for key in settings_map:
+            DEFAULT_WINDOW_CONFIG[key] = str(settings_map[key])
+    except Exception as e:
+        print(f"[Warning] Failed to load index.bin.Error: {e}")
+        exit(1)
+
+    sanitized_settings = sanitize_window_config(DEFAULT_WINDOW_CONFIG)
+    sanitized_settings['url'] = os.path.abspath(file)
+    if args.keepontop:
+        sanitized_settings['on_top'] = True
+
+    if not new:
+        # 2. Instead of calling window.evaluate_js() here, alert the main thread
+        print("[Watcher Thread] Compilation complete. Queueing reload signal...")
+        reload_queue.put("TRIGGER_RELOAD")
+    else:  
+        win = webview.create_window(**sanitized_settings)
+        return win
+
 class FileChangeHandler(FileSystemEventHandler):
     def __init__(self,file_to_watch,bin_file,temp_file_load,folder,css_file,components,settings,cooldown=0.5):
         self.cooldown = cooldown  # Seconds to ignore duplicate events
@@ -104,7 +130,9 @@ class FileChangeHandler(FileSystemEventHandler):
         self.last_md5[self.file_to_watch] = calculate_md5(self.file_to_watch)
 
 
+
     def on_modified(self, event):
+      
         # 1. Ignore directory modification events entirely
         if event.is_directory:
             return
@@ -133,13 +161,167 @@ class FileChangeHandler(FileSystemEventHandler):
                 self.last_triggered = current_time
                 self.last_md5[event.src_path] = md5
                 try:
-                    run(self.file_to_watch,self.bin_file,self.temp_file_load,self.folder,self.css_file,self.settings)
+                    run(
+                        self.file_to_watch,
+                        self.bin_file,
+                        self.temp_file_load,
+                        self.folder,
+                        self.css_file,
+                        self.settings)
+                    
                 except Exception as ex:
                     print("[Error in compilation]",ex)
+
+def observer(file_to_watch,bin_file,temp_file_load,folder,css_file,components,settings):
+    path_to_watch = os.path.join(os.path.dirname(file_to_watch))  # Watch current directory
     
-                  
+    event_handler = FileChangeHandler(
+        file_to_watch,
+        bin_file,temp_file_load,
+        folder,css_file,
+        components,settings)
+    
+    observer = Observer()
+    observer.schedule(event_handler, path=path_to_watch, recursive=True)
+    observer.daemon = True
 
+    
+    print(f"Monitoring changes in '{file_to_watch}'...")
+    observer.start()
+    while True:
+        signal = watcher_queue.get()
+        if signal == "STOP":
+            observer.stop()
+            break
+        
+# This is for hot-reloading but not for inital loading
+def run(file_to_watch,bin_file,temp_file_load,folder,css_file,settings:PYUI.settings):
+    
 
+    tree,components = compile_layout(
+        os.path.abspath(file_to_watch),
+        bin_file,os.path.dirname(os.path.dirname(file_to_watch)),
+        isBuildSript=True,TAG_RULES_HASHMAP=settings.CompilerSettings.TAG_RULES_HASHMAP)
+    
+    save_html_file(
+        tree,
+        temp_file_load,
+        '',
+        HTML_MAP=settings.CompilerSettings.HTML_TAG_CONVERSION_MAP,
+        LAYOUT_TAGS=settings.CompilerSettings.LAYOUT_CONTAINER_TAGS)
+
+    if PYUI.settings.CompilerSettings.TAILWIND_ENABLED:
+        if settings.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION']:
+            settings.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION'](os.path.abspath(folder))
+
+        build_global_tailwind(os.environ.get('tailwind','tailwind/tailwind.exe'),os.path.join(folder,'layouts'),css_file)
+    
+    #Copy the css files to the given directory
+    style_dir = os.path.join(folder,'layouts','styles')
+    if args.stylepath:
+        for obj in os.scandir(args.stylepath):
+            shutil.copy(obj,os.path.join(style_dir,os.path.basename(obj)))
+    else:
+        # look for the parent if styles present
+        stylepath_expected = os.path.join(pathlib.Path(file_to_watch).parent,'styles')
+        if os.path.isdir(stylepath_expected):
+            for obj in os.scandir(stylepath_expected):
+                shutil.copy(obj,os.path.join(style_dir,os.path.basename(obj)))
+    
+
+    load_layout(temp_file_load,bin_file,False)
+
+def HandleHotReload():
+    path_of_xml = args.hotreload
+    if args.settings != None:
+        settingsCustom = ImportCustomSettings(args.settings)
+    else:
+        settingsCustom = PYUI.settings
+
+    if not os.path.exists("temprun"):
+        os.mkdir("temprun")
+
+    folder = 'temprun/temp'+str(time.time())
+   
+    if not os.path.exists(folder):
+        os.mkdir(folder)
+        os.mkdir(os.path.join(folder,'layouts'))
+        os.mkdir(os.path.join(folder,'layouts','styles'))
+
+    bin_file = os.path.join(folder,'layouts','index.bin')
+    html_file = os.path.join(folder,'layouts','index.html')
+    css_file =  os.path.join(folder,'layouts','styles','global.css')
+    
+    if settingsCustom.CompilerSettings.HOOK_MAP['COMPILATION']:
+            settingsCustom.CompilerSettings.HOOK_MAP['COMPILATION'](os.path.abspath(folder))
+
+    tree,paths_etc = compile_layout(
+        os.path.abspath(path_of_xml),
+        bin_file,os.path.dirname(os.path.dirname(path_of_xml)),
+        isBuildSript=True,
+        TAG_RULES_HASHMAP=settingsCustom.CompilerSettings.TAG_RULES_HASHMAP)
+    
+    if settingsCustom.CompilerSettings.HOOK_MAP['CONVERTION']:
+            settingsCustom.CompilerSettings.HOOK_MAP['CONVERTION'](os.path.abspath(folder))
+    
+    stylesheets = save_html_file(
+        tree,
+        html_file,
+        '',
+        HTML_MAP=settingsCustom.CompilerSettings.HTML_TAG_CONVERSION_MAP,
+        LAYOUT_TAGS=settingsCustom.CompilerSettings.LAYOUT_CONTAINER_TAGS,
+        return_style_path=True)
+
+    # get proper path for stylesheets(absolute path)
+
+    basepath = os.path.dirname(path_of_xml)
+
+    stylesheets_absbolute_path = [ os.path.join(basepath,'styles',style_path)
+                                   for style_path in stylesheets  ]
+
+    #total components to scan 
+    paths_to_scan = paths_etc + stylesheets_absbolute_path
+
+    
+    if settingsCustom.CompilerSettings.TAILWIND_ENABLED:
+        if settingsCustom.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION']:
+            settingsCustom.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION'](os.path.abspath(folder))
+
+        build_global_tailwind(
+            os.environ.get('tailwind','tailwind/tailwind.exe'),
+            os.path.join(folder,'layouts'),css_file
+            )
+
+    #Copy the css files to the given directory
+    style_dir = os.path.join(folder,'layouts','styles')
+    if args.stylepath:
+        for obj in os.scandir(args.stylepath):
+            shutil.copy(obj,os.path.join(style_dir,os.path.basename(obj)))
+    else:
+        # look for the parent if styles present
+        stylepath_expected = os.path.join(pathlib.Path(path_of_xml).parent,'styles')
+        if os.path.isdir(stylepath_expected):
+            for obj in os.scandir(stylepath_expected):
+                shutil.copy(obj,os.path.join(style_dir,os.path.basename(obj)))
+    
+
+    window = load_layout(html_file,bin_file,True)
+   
+    
+
+    th = threading.Thread(target=observer,args=(path_of_xml,bin_file,html_file,folder,css_file,paths_to_scan,settingsCustom,),daemon=True)
+
+    th.start()
+
+    webview.start(main_thread_loop,args=(window,))
+
+    watcher_queue.put("STOP")
+    reload_queue.put("STOP")
+    
+    th.join()
+    
+                
+# to trigger reload of pywebview for hot reloading
 def main_thread_loop(window):
     while True:
         try:
@@ -179,18 +361,22 @@ def remove_readonly(func, path, excinfo):
 
 @atexit.register
 def cleanup():
-    if args.hotreload:
-        print("Cleaning up cache files")
-        err = False
-        if os.path.isdir('temprun'):
-            for obj in os.scandir('temprun'):
-                try:
-                    shutil.rmtree(obj.path,onexc=remove_readonly)
-                except:
-                    err = True
+    try:
+    
+        if args.hotreload:
+            print("Cleaning up cache files")
+            err = False
+            if os.path.isdir('temprun'):
+                for obj in os.scandir('temprun'):
+                    try:
+                        shutil.rmtree(obj.path,onexc=remove_readonly)
+                    except:
+                        err = True
 
-        if err:
-            print("Can not delete all temprun cache files manually please delete them manually.")
+            if err:
+                print("Can not delete all temprun cache files manually please delete them manually.")
+    except:
+        pass
     
 
 def sanitize_window_config(config: dict) -> dict:
@@ -236,130 +422,10 @@ def sanitize_window_config(config: dict) -> dict:
 
     return sanitized
 
-def load_layout(file,bin_file,new):
-    print("[Main Thread] Parsing binary environment layout...")
-    
-    try:
-        load = pickle.load(open(bin_file, 'rb'))
-
-        settings_map = load['form_settings']
-        for key in settings_map:
-            DEFAULT_WINDOW_CONFIG[key] = str(settings_map[key])
-    except Exception as e:
-        print(f"[Warning] Failed to load index.bin.Error: {e}")
-        exit(1)
-
-    sanitized_settings = sanitize_window_config(DEFAULT_WINDOW_CONFIG)
-    sanitized_settings['url'] = os.path.abspath(file)
-    if args.keepontop:
-        sanitized_settings['on_top'] = True
-
-    if not new:
-        # 2. Instead of calling window.evaluate_js() here, alert the main thread
-        print("[Watcher Thread] Compilation complete. Queueing reload signal...")
-        reload_queue.put("TRIGGER_RELOAD")
-    else:  
-        win = webview.create_window(**sanitized_settings)
-        return win
-    
-
-def observer(file_to_watch,bin_file,temp_file_load,folder,css_file,components,settings):
-    path_to_watch = os.path.join(os.path.dirname(file_to_watch))  # Watch current directory
-    
-    event_handler = FileChangeHandler(file_to_watch,bin_file,temp_file_load,folder,css_file,components,settings)
-    observer = Observer()
-    observer.schedule(event_handler, path=path_to_watch, recursive=True)
-    observer.daemon = True
 
     
-    print(f"Monitoring changes in '{file_to_watch}'...")
-    observer.start()
-    while True:
-        signal = watcher_queue.get()
-        if signal == "STOP":
-            observer.stop()
-            break
-        
 
-def run(file_to_watch,bin_file,temp_file_load,folder,css_file,settings:PYUI.settings):
-    
 
-    tree,components = compile_layout(os.path.abspath(file_to_watch),bin_file,os.path.dirname(os.path.dirname(file_to_watch)),isBuildSript=True,TAG_RULES_HASHMAP=settings.CompilerSettings.TAG_RULES_HASHMAP)
-    save_html_file(tree,temp_file_load,'',HTML_MAP=settings.CompilerSettings.HTML_TAG_CONVERSION_MAP,LAYOUT_TAGS=settings.CompilerSettings.LAYOUT_CONTAINER_TAGS)
-
-    if PYUI.settings.CompilerSettings.TAILWIND_ENABLED:
-        if settings.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION']:
-            settings.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION'](os.path.abspath(folder))
-
-        build_global_tailwind(os.environ.get('tailwind','tailwind/tailwind.exe'),os.path.join(folder,'layouts'),css_file)
-    
-
-    load_layout(temp_file_load,bin_file,False)
-
-def HandleHotReload():
-    path_of_xml = args.hotreload
-    if args.settings != None:
-        settingsCustom = ImportCustomSettings(args.settings)
-    else:
-        settingsCustom = PYUI.settings
-
-    if not os.path.exists("temprun"):
-        os.mkdir("temprun")
-
-    folder = 'temprun/temp'+str(time.time())
-   
-    if not os.path.exists(folder):
-        os.mkdir(folder)
-        os.mkdir(os.path.join(folder,'layouts'))
-        os.mkdir(os.path.join(folder,'layouts','styles'))
-
-    bin_file = os.path.join(folder,'layouts','index.bin')
-    html_file = os.path.join(folder,'layouts','index.html')
-    css_file =  os.path.join(folder,'layouts','styles','global.css')
-    
-    if settingsCustom.CompilerSettings.HOOK_MAP['COMPILATION']:
-            settingsCustom.CompilerSettings.HOOK_MAP['COMPILATION'](os.path.abspath(folder))
-
-    tree,paths_etc = compile_layout(os.path.abspath(path_of_xml),bin_file,os.path.dirname(os.path.dirname(path_of_xml)),isBuildSript=True,TAG_RULES_HASHMAP=settingsCustom.CompilerSettings.TAG_RULES_HASHMAP)
-    
-    if settingsCustom.CompilerSettings.HOOK_MAP['CONVERTION']:
-            settingsCustom.CompilerSettings.HOOK_MAP['CONVERTION'](os.path.abspath(folder))
-    
-    save_html_file(tree,html_file,'',HTML_MAP=settingsCustom.CompilerSettings.HTML_TAG_CONVERSION_MAP,LAYOUT_TAGS=settingsCustom.CompilerSettings.LAYOUT_CONTAINER_TAGS)
-    
-    if settingsCustom.CompilerSettings.TAILWIND_ENABLED:
-        if settingsCustom.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION']:
-            settingsCustom.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION'](os.path.abspath(folder))
-
-        build_global_tailwind(os.environ.get('tailwind','tailwind/tailwind.exe'),os.path.join(folder,'layouts'),css_file)
-
-    #Copy the css files to the given directory
-    style_dir = os.path.join(folder,'layouts','styles')
-    if args.stylepath:
-        for obj in os.scandir(args.stylepath):
-            shutil.copy(obj,os.path.join(style_dir,os.path.basename(obj)))
-    else:
-        # look for the parent if styles present
-        stylepath_expected = os.path.join(pathlib.Path(path_of_xml).parent,'styles')
-        if os.path.isdir(stylepath_expected):
-            for obj in os.scandir(stylepath_expected):
-                shutil.copy(obj,os.path.join(style_dir,os.path.basename(obj)))
-    
-
-    window = load_layout(html_file,bin_file,True)
-   
-    
-
-    th = threading.Thread(target=observer,args=(path_of_xml,bin_file,html_file,folder,css_file,paths_etc,settingsCustom,),daemon=True)
-
-    th.start()
-
-    webview.start(main_thread_loop,args=(window,))
-
-    watcher_queue.put("STOP")
-    reload_queue.put("STOP")
-    
-    th.join()
     
 def ImportCustomSettings(file_path):
     # 1. Define the module name and absolute file path
