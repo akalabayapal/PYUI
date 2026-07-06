@@ -31,7 +31,7 @@ a = Analysis(
     ['bootstrap.py'],
     pathex=[],
     binaries=[],
-    datas=[('code', 'code'), ('compiled_layouts', 'compiled_layouts'), ('layouts', 'layouts')],
+    datas=[('code', 'code'), ('compiled_layouts', 'compiled_layouts'), ('compiled_components', 'compiled_components'), ('layouts', 'layouts'),('settings.bin','.')],
     hiddenimports=dynamic_modules,
     hookspath=[],
     hooksconfig={},

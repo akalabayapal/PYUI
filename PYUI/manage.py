@@ -429,7 +429,7 @@ def sanitize_window_config(config: dict) -> dict:
     
 def ImportCustomSettings(file_path):
     # 1. Define the module name and absolute file path
-        module_name = "custom_settings"
+        module_name = "PYUI.settings"
         
 
         # 2. Create a module spec from the file location

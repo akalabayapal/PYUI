@@ -118,6 +118,7 @@ is_first = True
 
 ASSIGNED_PORT = queue.Queue(1)
 
+
 class ConsoleRouter:
     def log(self, message):
         # This catches anything sent from JS and prints it in your Python terminal
@@ -657,6 +658,7 @@ def MainQueueReader(window):
                 window.destroy()
             except:
                 pass
+            SEND_QUEUE.put((SysCall['END'],time.time(),Message(SysCall['END'])))
             for q in CALLBACK_HASHMAP:
                 qu = CALLBACK_HASHMAP[q]
                 qu.put("END")
@@ -697,7 +699,7 @@ def BootStrapper(entryfile):
     #load the config
     config = pickle.load(
         open(
-            'settings.bin','rb'
+            resource_path('settings.bin'),'rb'
         )
     )
     

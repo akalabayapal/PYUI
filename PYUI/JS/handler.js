@@ -232,16 +232,31 @@ class Msghandler {
                 var id = jsonMessage.id;
                 var attrib = jsonMessage.attrib;
 
-                if (attrib == 'value') {
-                    var value = document.getElementById(id).value;
+                var element = document.getElementById(id);
+
+                if (attrib == 'text') {
+                    var value = element.textContent;
                 }
-                else if (attrib == 'text') {
-                    var value = document.getElementById(id).textContent;
+                else if (attrib in element) {
+                    const val = element[attrib];
+
+                    if (
+                        typeof val === "string" ||
+                        typeof val === "number" ||
+                        typeof val === "boolean"
+                    ) {
+                        var value = val;
+                    }
+                    else {
+                        var value = element.getAttribute(name);
+
+                    }
+                }
+                else {
+                    var value = element.getAttribute(name);
+
                 }
 
-                else {
-                    var value = document.getElementById(id).getAttribute(attrib);
-                }
 
                 _HandleGrbContent(uuid, this.socket, value);
             }
@@ -301,12 +316,12 @@ class Msghandler {
             var id = args.id;
             var value = args.value;
             var att = args.att;
+             var ele = document.getElementById(id);
 
-            if (att == 'value') {
-                document.getElementById(id).value = value; // We need to handle the value separately
+            if (att in ele) {
+                ele[att] = value;
             }
             else {
-                var ele = document.getElementById(id);
 
                 if (ele) {
                     ele.setAttribute(att, value);
@@ -363,7 +378,7 @@ class Msghandler {
  * @param {string} html_to_add - the html node
  * @param {string} mode - mode of addition append | top } after
  */
-function addNode(parent_id, html_to_add,mode) {
+function addNode(parent_id, html_to_add, mode) {
 
 
     // 1. Select the parent node
@@ -373,22 +388,20 @@ function addNode(parent_id, html_to_add,mode) {
     const rawHTML = html_to_add;
 
     // 3. Append the raw HTML directly
-    if(mode === 'append')
-    {
+    if (mode === 'append') {
         parentElement.insertAdjacentHTML('beforeend', rawHTML);
     }
-    else if(mode === 'top')
-    {
+    else if (mode === 'top') {
         parentElement.insertAdjacentHTML('afterbegin', rawHTML);
 
     }
-    else if(mode == 'after'){
-                parentElement.insertAdjacentHTML('afterend', rawHTML);
+    else if (mode == 'after') {
+        parentElement.insertAdjacentHTML('afterend', rawHTML);
     }
-    
+
 }
 
-function remNode(node_id){
+function remNode(node_id) {
 
     const element = document.getElementById(node_id);
     element.remove();
@@ -398,7 +411,7 @@ function remNode(node_id){
  * 
  * @param {string} msg - the json message from the python runtime format:{'parent_id','html_to_add'}
  */
-function addNodeHandler(msg){
+function addNodeHandler(msg) {
 
 
     const message = JSON.parse(msg.msg);
@@ -421,7 +434,7 @@ function addNodeHandler(msg){
  * 
  * @param {string} msg - The message string json
  */
-function remNodeHandler(msg){
+function remNodeHandler(msg) {
 
     const message = JSON.parse(msg.msg);
 
@@ -429,5 +442,5 @@ function remNodeHandler(msg){
 
 }
 
-bind('ADD_NODE_END',addNodeHandler);
-bind('REM_NODE',remNodeHandler);
+bind('ADD_NODE_END', addNodeHandler);
+bind('REM_NODE', remNodeHandler);

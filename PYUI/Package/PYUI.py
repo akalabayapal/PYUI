@@ -11,12 +11,15 @@ import time
 import itertools
 import threading
 from functools import wraps
-from PYUI.compiler import processParams
 import pickle
 import os
 import warnings
 from PYUI.settings import  CompilerSettings
 import json
+import sys
+
+class InvalidPropError(Exception):
+    pass
 
 SysCall = {
     'START':0,
@@ -44,6 +47,74 @@ _thread_context = threading.local()
 # 1. GLOBAL FALLBACK COMMIT ENGINE (For Ungrouped Code)
 # ==============================================================================
 FALLBACK_EXECUTION_QUEUE = queue.Queue()
+
+def processParams(v:str,props:dict):
+    if not '{' in v:
+        return v #no need to process params without props
+    
+    iscurlyStarted = False
+    iscurlyEnded = False
+    buffer = ""
+    key = ""
+    for n,char in enumerate(v+" "):
+        if char == '{':
+            if  n == 0:
+                iscurlyStarted = True
+            elif v[n-1] == "/":
+
+                buffer += char
+            elif iscurlyStarted == True:
+                #it is just something inside {} just add to buffer
+                key += char
+            
+            elif iscurlyEnded == True and iscurlyStarted == True:
+                buffer += char
+            else:
+                 iscurlyStarted = True
+
+
+        elif char == "}":
+
+            if n == 0:
+                buffer += char
+            elif v[n-1] == "/":
+                if iscurlyStarted == True:
+
+                    key  += char
+                    
+                else:
+                    buffer += char
+     
+            elif iscurlyStarted == True:
+
+                iscurlyStarted = False
+                iscurlyEnded = False
+
+                try:
+                    buffer += props[key.strip()]
+                except KeyError:
+                    raise InvalidPropError(f'The prop:{key} is used but not explicitly defined in parent layout file add {key}="some_value" to fix it.')
+                key = ""
+                
+        elif char == "/" and (v[n+1] == "{" or v[n+1] == "}"):
+            continue
+        else:
+            if iscurlyStarted == True and iscurlyEnded == False:
+                key += char
+            else:
+                buffer += char
+
+    return buffer.strip()
+
+
+def resource_path(*parts):
+    if getattr(sys, "frozen", False):
+        base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base, *parts)
+
 
 def _fallback_sequential_worker():
     """Consumes and processes commits from all ungrouped threads sequentially."""

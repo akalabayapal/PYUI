@@ -40,7 +40,8 @@ class CompilerSettings:
     "Component":{"file","name"},
     "ComponentFile":set(),
     
-    "Selector":{"id","style-class"},
+    "selector":{"id","style-class"},
+    "option":{"id","style-class","value"},
 
     # --- TEXT TAGS ---
     "Text": {"id", "style-class", "innerText"},
@@ -79,7 +80,8 @@ class CompilerSettings:
     "input": "input",
     "br": "br",
     "Para":"p",
-    "Selector":"select",
+    "selector":"select",
+    "option":"option",
 
     # --- TEXT TAGS ---
     "h1":"h1",
