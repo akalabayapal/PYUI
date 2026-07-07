@@ -32,8 +32,10 @@ class CompilerSettings:
     "main-content": {"default-active-window"},
     "window": {"id", "style-class"},
 
-    "Input": {"id", "style-class", "placeholder","type"},
-    "Button": {"innerText", "style-class", "id"},
+    "Input": {"id", "style-class", "placeholder","type","value","disabled"},
+    "textarea":{"id", "style-class", "placeholder","value","autofocus","readonly","cols","wrap","rows","disabled","maxlength"},
+
+    "Button": {"innerText", "style-class", "id","disabled"},
     "container": {"id", "style-class", "layout"},
     "br":(),
     "style":{"file","type"},
@@ -51,10 +53,6 @@ class CompilerSettings:
     "h3":{"id", "style-class", "innerText"},
     "h4":{"id", "style-class", "innerText"},
     "label":{"id", "style-class", "innerText"},
-    
-
-
-
 
     
     # --- NEW MEDIA TAGS ---
@@ -89,6 +87,7 @@ class CompilerSettings:
     "h3":"h3",
     "h4":"h4",
     "label":"label",
+    "textarea":"textarea",
     # --- NEW MEDIA MAPPINGS ---
     "img": "img",
     "video": "video",

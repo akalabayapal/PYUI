@@ -3,6 +3,50 @@
 var SECRET_KEY = null;
 var GLOBAL_CUSTOM_SYSCALL_MAP = {}; // Js object to store all the custom syscalls 
 
+function getNestedValue(obj, path) {
+    // If obj is invalid or path is not a string, return null
+    if (!obj || typeof path !== 'string') return null;
+
+    // Split the path by '.' and traverse the object
+    const result = path.split('.').reduce((currentPath, key) => {
+        // If at any point the path becomes undefined or null, return null
+        if (currentPath === null || currentPath === undefined) {
+            return null;
+        }
+        return currentPath[key];
+    }, obj);
+
+    // Ensure we return null if the final result is undefined
+    return result !== undefined ? result : null;
+}
+
+function setNestedValue(obj, path, value) {
+    // If obj is invalid or path is not a string, return false (operation failed)
+    if (!obj || typeof path !== 'string') return false;
+
+    const keys = path.split('.');
+    let current = obj;
+
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+
+        // If we are at the last key, set the value
+        if (i === keys.length - 1) {
+            current[key] = value;
+            return true; // Success
+        }
+
+        // If the next nested level doesn't exist, or isn't an object, create it
+        if (current[key] === undefined || current[key] === null || typeof current[key] !== 'object') {
+            current[key] = {};
+        }
+
+        // Move deeper into the object tree
+        current = current[key];
+    }
+
+    return false;
+}
 
 function register_sign(sign) {
     SECRET_KEY = sign;
@@ -48,10 +92,10 @@ async function computeHmac(message, secretKey) {
 }
 
 
-async function _HandleCallbackSend(uuid, socket) {
+async function _HandleCallbackSend(uuid, socket, details) {
 
     //toSend = "{\"uuid\":\"" + uuid + "\",\"type\":\"CALLBACK\",\"data\":\"\"}";
-    var toSend = { "uuid": uuid, "type": "CALLBACK", "data": "" };
+    var toSend = { "uuid": uuid, "type": "CALLBACK", "data": details };
 
     send_str = JSON.stringify(toSend);
 
@@ -171,6 +215,8 @@ async function sendSyscall(syscall, msg) {
 }
 
 
+
+
 class Msghandler {
     constructor(socket) {
 
@@ -234,11 +280,12 @@ class Msghandler {
 
                 var element = document.getElementById(id);
 
+                const val = getNestedValue(element,attrib);
+
                 if (attrib == 'text') {
                     var value = element.textContent;
                 }
-                else if (attrib in element) {
-                    const val = element[attrib];
+                else if (val != null) {
 
                     if (
                         typeof val === "string" ||
@@ -248,15 +295,18 @@ class Msghandler {
                         var value = val;
                     }
                     else {
-                        var value = element.getAttribute(name);
+                        var value = element.getAttribute(attrib);
 
                     }
                 }
                 else {
-                    var value = element.getAttribute(name);
+                    var value = element.getAttribute(attrib);
 
                 }
-
+                
+                if(!value){
+                    console.log(`Error:No attribute ${attrib} found for id:${id}`);
+                }
 
                 _HandleGrbContent(uuid, this.socket, value);
             }
@@ -288,6 +338,7 @@ class Msghandler {
 
         }
         else {
+            
             console.log("Wrong uuid or signature did not match.Hence dropping the packet.");
         }
     }
@@ -316,15 +367,19 @@ class Msghandler {
             var id = args.id;
             var value = args.value;
             var att = args.att;
-             var ele = document.getElementById(id);
+            var ele = document.getElementById(id);
 
-            if (att in ele) {
-                ele[att] = value;
-            }
-            else {
 
+            // try to set it 
+
+            const set = setNestedValue(ele, att, value);
+
+            if (!set) {
                 if (ele) {
                     ele.setAttribute(att, value);
+                }
+                else{
+                    console.log(`Error:No attribute/property:${att} found for id:${id}`);
                 }
             }
 
@@ -336,10 +391,16 @@ class Msghandler {
             var value = args.value;
             var att = args.att;
 
+            var ele = document.getElementById(id);
 
+            if (att in ele.style) {
 
-            var js = "document.getElementById(\"" + id + "\").style." + att + " = \"" + value + "\" ;"
-            eval(js);
+                ele.style[att] = value;
+            }
+            else {
+                console.log(`Error: No style attribute named:${att} found for id:${id}.`)
+            }
+
         }
         else if (execution_type == 'addstyleclass') {
             HandleStyleClass(args);
@@ -358,7 +419,19 @@ class Msghandler {
 
         //To handle the REGISTER_CALLBACK syscalls...
         var element = document.getElementById(id);
-        var wrapper = () => _HandleCallbackSend(uuid, this.socket);
+        var wrapper = (event) => {
+
+
+            if (event.detail) {
+                _HandleCallbackSend(uuid, this.socket, event.detail);
+
+            }
+            else {
+                _HandleCallbackSend(uuid, this.socket, "");
+
+            }
+        };
+
         if (element) {
             element.addEventListener(eventType, wrapper);
         }

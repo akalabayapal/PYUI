@@ -111,7 +111,7 @@ def resource_path(*parts):
     if getattr(sys, "frozen", False):
         base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
     else:
-        base = os.path.dirname(os.path.abspath(__file__))
+        base = ""
 
     return os.path.join(base, *parts)
 

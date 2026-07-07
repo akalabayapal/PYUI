@@ -5,30 +5,6 @@ from PYUI.pyuinode import PyUILayoutNode
 import os
 import warnings
 
-# Strict lowercase match arrays to preserve structural boundaries
-LAYOUT_CONTAINER_TAGS_DEFAULT = {"main-content", "window", "container", "pyui","Datagrid","row","ComponentFile"}
-
-HTML_TAG_CONVERSION_MAP_DEFAULT = {
-    "main-content": "div",
-    "window": "div",
-    "container": "div",
-    "text": "span",
-    "button": "button",
-    "input": "input",
-    "br": "br",
-    "Para":"p",
-    # --- NEW MEDIA MAPPINGS ---
-    "img": "img",
-    "video": "video",
-    "audio": "audio",
-    # --- DATA GRID --- #
-
-    "Datagrid":"table",
-    "row":"tr",
-    "data":"th"
-
-    }
-
 
 
 
@@ -138,7 +114,7 @@ def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=No
     """+stylesheet_html+"""
     <script src='JS/handler.js' defer></script>
     <script src='JS/connection.js' defer></script>
-    <script src='JS/"""+base_name.replace('html','')+"""js'></script>
+    <script src='JS/"""+base_name.replace('html','')+"""js' defer></script>
     </head>
 """+body_content+"""
 </html>
@@ -152,9 +128,10 @@ def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=No
 
 def save_html_file(node: PyUILayoutNode, file_path: str,project_dir:str,HTML_MAP=None,LAYOUT_TAGS=None,return_style_path=False):
     if HTML_MAP == None:
-        HTML_MAP = HTML_TAG_CONVERSION_MAP_DEFAULT
+        raise RuntimeError('No settings.CompilerSettings.HTML_TAG_CONVERSION_MAP was supplied.')
     if LAYOUT_TAGS == None:
-        LAYOUT_TAGS = LAYOUT_CONTAINER_TAGS_DEFAULT
+        raise RuntimeError('No settings.CompilerSettings.LAYOUT_CONTAINER_TAGS was supplied.')
+        
 
     toRet = generate_full_html_document(
         node,

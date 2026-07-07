@@ -486,7 +486,7 @@ async def listen_for_messages(websocket):
                     q:queue.Queue = CALLBACK_HASHMAP.get(val['uuid'])
                 
                     if q and (signExpected == signCame):
-                        q.put(Message(SysCall['POLL']))
+                        q.put(val['data'])
                     else:
                         print("[Packet Dropped] Packed did not have valid registered callback registered or signature of data is not matched.")
                 else:

@@ -4,6 +4,7 @@ import pickle
 import colorama
 from PYUI.pyuinode import PyUILayoutNode
 from pathlib import Path
+import warnings
 
 
 # Absolute path of the current script
@@ -42,41 +43,6 @@ c_engine.free_c_tree.argtypes = [ctypes.POINTER(DOMNodeStruct)]
 # =========================================================
 # 2. STRICTOR TAG VALIDATION RULE HASHMAP
 # =========================================================
-TAG_RULES_HASHMAP_DEFAULT = {
-    "pyui": set(), 
-    "metadata": set(),
-    "version": set(),
-    "form-settings": set(),
-    "title": set(),
-    "width": set(),
-    "height": set(),
-    "resizable": set(),
-
-
-    "main-content": {"default-active-window"},
-    "window": {"id", "style-class"},
-
-    "Text": {"id", "style-class", "innerText"},
-    "Input": {"id", "style-class", "placeholder","type"},
-    "Button": {"innerText", "style-class", "id"},
-    "container": {"id", "style-class", "layout"},
-    "br":(),
-    "style":{"file","type"},
-    "Component":{"file","name"},
-    "ComponentFile":set(),
-    "Para":{"id", "style-class", "layout", "padding","innerText"},
-    
-    # --- NEW MEDIA TAGS ---
-    "Img": {"id", "style-class", "src", "alt", "width", "height"},
-    "Video": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted", "poster", "width", "height"},
-    "Audio": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted"},
-
-    # ---- DATA GRID -------- #
-    "Datagrid":{"id","style-class"},
-    "row":{"id","style-class"},
-    "data":{"id","style-class","innerText"}
-
-}
 
 CACHE_COMPONENTS = {}
 
@@ -287,9 +253,17 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
                 f"-> Given include:{file} can not be resolved correctly.As it may trigger a infinite circular import."
             )
                 CACHE_COMPONENTS[file][1] = IMPORT_STATE.processing #Change to processing tag
-    
 
-        tag_inner = component_c_ptr.contents.firstChild.contents.tag.decode('utf-8').strip() if c_node.tag else ""
+        tag_component_file = component_c_ptr.contents.firstChild.contents
+      
+        tag_inner = tag_component_file.tag.decode('utf-8').strip() if c_node.tag else ""
+
+        for i in range(tag_component_file.attrcount):
+            k:str = tag_component_file.attrKey[i].decode('utf-8').strip()
+            v = tag_component_file.attrVal[i].decode('utf-8').strip()
+
+            if not k in processProps:
+                processProps[k] = v
 
         #check if inital tag is Contents enforcing it is useful else throw error
         if tag_inner != "ComponentFile":
@@ -335,14 +309,23 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
         k:str = c_node.attrKey[i].decode('utf-8').strip()
         v = c_node.attrVal[i].decode('utf-8').strip()
 
+
         if mangling.strip() != "":
             v = processParams(v,processProps)
 
-        if k not in allowed_attributes:
-            raise ValueError(
-                f"[Compiler Error] Critical parameter boundary violation!\n"
-                f"-> Tag Primitive <{tag}> contains unauthorized/excess attribute definition: '{k}'"
-            )
+        if k not in allowed_attributes and k.split("-")[0] != 'data':
+
+            if tag == "ComponentFile":
+                # store the tags if not present 
+                if not k in processProps:
+                    processProps[k] = v # store the default values....
+
+            else:
+          
+                raise ValueError(
+                    f"[Compiler Error] Critical parameter boundary violation!\n"
+                    f"-> Tag Primitive <{tag}> contains unauthorized/excess attribute definition: '{k}'"
+                )
         if k == "id":
             if mangling.strip() != "":
                 v = mangling+"_"+v
@@ -447,7 +430,7 @@ def compile_layout(in_file: str, out_file: str,PROJECT_DIR:str,isBuildSript=Fals
         temp_cache = {}
 
         if TAG_RULES_HASHMAP == None:
-            TAG_RULES_HASHMAP = TAG_RULES_HASHMAP_DEFAULT
+            raise RuntimeError("No settings.CompilerSettings.TAGS_RULES_HASHMAP was supplied.")
         # 3. Bake and audit tree parameters via Python state checking rules, passing our index map pointer
         if isBuildSript:
             baked_tree = bake_strict_c_tree_to_python(real_user_root,id_windows, id_index_map,PROJECT_DIR,isbuildscript=isBuildSript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP)
