@@ -601,7 +601,7 @@ class Component:
 
         self.load = pickle.load(
             open(
-            os.path.join('compiled_components',componentName.strip()+'.bin')
+            resource_path('compiled_components',componentName.strip()+'.bin')
             ,'rb')
             )
         self.tree = self.load['layout_tree']

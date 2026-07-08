@@ -156,7 +156,7 @@ def resource_path(*parts):
     if getattr(sys, "frozen", False):
         base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
     else:
-        base = os.path.dirname(os.path.abspath(__file__))
+        base = ""
 
     return os.path.join(base, *parts)
 
@@ -680,7 +680,7 @@ def BootStrapper(entryfile):
     print("[Main Thread] Parsing binary environment layout...")
     
     try:
-        load = pickle.load(open(resource_path('compiled_layouts/'+entryfile+'.bin'), 'rb'))
+        load = pickle.load(open(resource_path('compiled_layouts', f'{entryfile}.bin'), 'rb'))
 
         settings_map = load['form_settings']
         for key in settings_map:
@@ -690,8 +690,7 @@ def BootStrapper(entryfile):
         exit(1)
 
     sanitized_settings = sanitize_window_config(DEFAULT_WINDOW_CONFIG)
-    sanitized_settings['url'] = 'layouts/'+entryfile+'.html'
-
+    sanitized_settings['url'] = resource_path('layouts', f'{entryfile}.html')
 
     router = ConsoleRouter()
     window = webview.create_window(**sanitized_settings,js_api=router)

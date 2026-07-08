@@ -6,6 +6,7 @@ from PYUI.pyuinode import PyUILayoutNode
 from pathlib import Path
 import warnings
 import time
+import sys
 
 # Absolute path of the current script
 script_path = Path(__file__).resolve().parent
@@ -33,7 +34,17 @@ DOMNodeStruct._fields_ = [
 ]
 
 # Load DLL
-dll_path = os.path.abspath(os.path.join(script_path,"dll/xmlparser.dll"))
+# Dynamic extension loading
+# Dynamic extension loading for Windows, macOS, and Linux
+if sys.platform == "win32":
+    dll_name = "dll/xmlparser.dll"
+elif sys.platform == "darwin":  # "darwin" is the system string for macOS
+    dll_name = "dll/xmlparser.dylib"
+else:
+    dll_name = "dll/xmlparser.so"
+
+dll_path = os.path.abspath(os.path.join(script_path, dll_name))
+
 c_engine = ctypes.CDLL(dll_path)
 c_engine.parse_xml_to_tree.argtypes = [ctypes.c_char_p]
 c_engine.parse_xml_to_tree.restype = ctypes.POINTER(DOMNodeStruct)
