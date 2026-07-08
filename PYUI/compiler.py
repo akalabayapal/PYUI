@@ -5,7 +5,7 @@ import colorama
 from PYUI.pyuinode import PyUILayoutNode
 from pathlib import Path
 import warnings
-
+import time
 
 # Absolute path of the current script
 script_path = Path(__file__).resolve().parent
@@ -144,7 +144,7 @@ def processParams(v:str,props:dict):
 # =========================================================
 # 4. THE COMPILER BAKE & INDEX PASS
 # =========================================================
-def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,project_dir:str,mangling="",processProps={},isbuildscript=False,temp_cache={},TAG_RULES_HASHMAP={}) -> PyUILayoutNode:
+def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,project_dir:str,mangling="",processProps={},isbuildscript=False,temp_cache={},TAG_RULES_HASHMAP={},Component=False) -> PyUILayoutNode:
     
     '''
     c_node_ptr: C Xml parser node pointer
@@ -277,7 +277,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
         
         # Process and return the sub-tree directly, passing name as mangling prefix
         # This replaces the <Component> tag with the actual inner nodes seamlessly
-        baked_component_tree = bake_strict_c_tree_to_python(real_component_root, id_windows, id_index_map, project_dir, mangling=name,processProps=processProps,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP)
+        baked_component_tree = bake_strict_c_tree_to_python(real_component_root, id_windows, id_index_map, project_dir, mangling=name,processProps=processProps,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
 
         # 2. Grab the sibling that was waiting AFTER the <Component> tag in the parent container
         sibling_ptr = c_node.nextSibling
@@ -292,7 +292,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
                 last_sibling = last_sibling.nextSibling
             
             # Stitch the parent's remaining layout tags right onto the end of the component chain
-            last_sibling.nextSibling = bake_strict_c_tree_to_python(sibling_ptr, id_windows, id_index_map, project_dir, mangling=name,processProps=processProps,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP)
+            last_sibling.nextSibling = bake_strict_c_tree_to_python(sibling_ptr, id_windows, id_index_map, project_dir, mangling=name,processProps=processProps,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
 
         #Change the cache back to done processing back to normal
         if isbuildscript:
@@ -312,11 +312,14 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
 
         if mangling.strip() != "":
             v = processParams(v,processProps)
+    
 
         if k not in allowed_attributes and k.split("-")[0] != 'data':
 
             if tag == "ComponentFile":
                 # store the tags if not present 
+
+
                 if not k in processProps:
                     processProps[k] = v # store the default values....
 
@@ -327,8 +330,27 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
                     f"-> Tag Primitive <{tag}> contains unauthorized/excess attribute definition: '{k}'"
                 )
         if k == "id":
+
+            if v.strip().startswith("dyn_id"):
+                raise RuntimeError(f"[Compiler Error] No id must start with 'dyn_id' it is reserved for internal purposes.")
+
+
+
             if mangling.strip() != "":
-                v = mangling+"_"+v
+                if v.strip() != "":
+                    v = mangling+"_"+v
+                elif v in id_index_map:
+                    raise RuntimeError(f"[Compiler Error] Duplicate ID detected. No 2 elements must keep id defined but blank." \
+                                       "As blank id are replaced by the name of the component:  '{v}'")
+                else:
+                    v = processProps['name']
+            else:
+                    if v == "":
+                        if Component:
+                            v = "dyn_id_"+str(time.time_ns()) # for the compiling the scripts
+                            time.sleep(0.1)
+                        else:
+                            raise RuntimeError(f"[Compiler Error] Can not make element with blank ID.")
 
             py_node.id = v
             if v:
@@ -363,10 +385,10 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
 
     # 4. Process safe recursive layout pointers
     if child_ptr:
-        py_node.firstChild = bake_strict_c_tree_to_python(child_ptr,id_windows, id_index_map,project_dir,mangling=mangling,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP)
+        py_node.firstChild = bake_strict_c_tree_to_python(child_ptr,id_windows, id_index_map,project_dir,mangling=mangling,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
         
     if sibling_ptr:
-        py_node.nextSibling = bake_strict_c_tree_to_python(sibling_ptr,id_windows, id_index_map,project_dir,mangling=mangling,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP)
+        py_node.nextSibling = bake_strict_c_tree_to_python(sibling_ptr,id_windows, id_index_map,project_dir,mangling=mangling,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
         
     return py_node
 
@@ -412,7 +434,7 @@ def preprocessor(in_file: str) -> str:
     clean_xml = "".join(line.strip() for line in raw_xml.splitlines())
     return clean_xml
 
-def compile_layout(in_file: str, out_file: str,PROJECT_DIR:str,isBuildSript=False,TAG_RULES_HASHMAP=None):
+def compile_layout(in_file: str, out_file: str,PROJECT_DIR:str,isBuildSript=False,TAG_RULES_HASHMAP=None,Component=False):
     """Executes preprocessor passes, processes tree layouts, and saves verified bytecode."""
     print(colorama.Fore.GREEN+"[PyUI Master Compiler]"+colorama.Fore.RESET+" Running build pipeline...")
     
@@ -424,6 +446,8 @@ def compile_layout(in_file: str, out_file: str,PROJECT_DIR:str,isBuildSript=Fals
     #store the form settings in another dictionary for runtime access without traversal
     settings = {}
     id_windows = []
+    default_props = {}
+
     try:
         # Step over the C parser's internal <ROOT> node to target your real <pyui> data element container
         real_user_root = c_root_ptr.contents.firstChild
@@ -433,12 +457,13 @@ def compile_layout(in_file: str, out_file: str,PROJECT_DIR:str,isBuildSript=Fals
             raise RuntimeError("No settings.CompilerSettings.TAGS_RULES_HASHMAP was supplied.")
         # 3. Bake and audit tree parameters via Python state checking rules, passing our index map pointer
         if isBuildSript:
-            baked_tree = bake_strict_c_tree_to_python(real_user_root,id_windows, id_index_map,PROJECT_DIR,isbuildscript=isBuildSript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP)
+            baked_tree = bake_strict_c_tree_to_python(real_user_root,id_windows, id_index_map,PROJECT_DIR,isbuildscript=isBuildSript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,processProps=default_props,Component=Component)
 
         else:
-            baked_tree = bake_strict_c_tree_to_python(real_user_root,id_windows, id_index_map,PROJECT_DIR,isbuildscript=isBuildSript,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP)
+            baked_tree = bake_strict_c_tree_to_python(real_user_root,id_windows, id_index_map,PROJECT_DIR,isbuildscript=isBuildSript,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,processProps=default_props,Component=Component)
 
         find_form_settings_content_node(baked_tree,settings=settings)
+    
 
         
         # Combine layout tree, flat identity map and form settings inside the unified binary distribution package
@@ -446,7 +471,8 @@ def compile_layout(in_file: str, out_file: str,PROJECT_DIR:str,isBuildSript=Fals
             "layout_tree": baked_tree,
             "id_index_map": id_index_map,
             "form_settings":settings,
-            "id_windows":id_windows
+            "id_windows":id_windows,
+            "component_defaults":default_props
         }
 
         # 4. Serialize out perfectly validated application byte representation

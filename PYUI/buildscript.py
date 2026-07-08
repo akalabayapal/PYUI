@@ -148,7 +148,7 @@ def build(PROJECT_DIR:str,TAILWIND_EXE:str,target=None,isexe=None,name=None,is_c
 
     COMPONENTS_FOLDER = os.path.join(PROJECT_DIR,'layouts','components')
     for f in os.scandir(COMPONENTS_FOLDER):
-            PYUI.compiler.compile_layout(f,os.path.join(REQ_FOLDERS['compiled_components'],os.path.basename(f).replace('.xml','')+'.bin'),PROJECT_DIR,TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP)
+            PYUI.compiler.compile_layout(f,os.path.join(REQ_FOLDERS['compiled_components'],os.path.basename(f).replace('.xml','')+'.bin'),PROJECT_DIR,TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP,Component=True)
 
     # also store the settings in a pickle
     SETTINGS_FILE = os.path.join(REQ_FOLDERS['.'],'settings.bin')

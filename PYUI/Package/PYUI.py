@@ -48,7 +48,7 @@ _thread_context = threading.local()
 # ==============================================================================
 FALLBACK_EXECUTION_QUEUE = queue.Queue()
 
-def processParams(v:str,props:dict):
+def processParams(v:str,props:dict,defaults:dict={}):
     if not '{' in v:
         return v #no need to process params without props
     
@@ -91,7 +91,12 @@ def processParams(v:str,props:dict):
                 iscurlyEnded = False
 
                 try:
-                    buffer += props[key.strip()]
+                    val = props.get(key.strip())
+            
+                    if val:
+                        buffer += val
+                    else:
+                        buffer += defaults[key.strip()]
                 except KeyError:
                     raise InvalidPropError(f'The prop:{key} is used but not explicitly defined in parent layout file add {key}="some_value" to fix it.')
                 key = ""
@@ -600,7 +605,8 @@ class Component:
             ,'rb')
             )
         self.tree = self.load['layout_tree']
-        self.idList = self.load['id_index_map']
+        self.defaults = self.load['component_defaults']
+        self.idList = {}
 
         self.component_list = {}
 
@@ -626,12 +632,23 @@ class Component:
         attr_parts = []
         inner_text = "" 
 
-        element_id = getattr(node, 'id', None)
+        element_id:str = getattr(node, 'id', None)
         if element_id:
-            if prefix_name.strip() != '':
+
+            if element_id.strip().startswith("dyn_id"):
+                element_id = prefix_name
+                if element_id in self.idList:
+                    raise RuntimeError("Can not keep more than one id blank inside main component.")
+                
+                attr_parts.append(f'id="{element_id}"')
+                self.idList[element_id] = html_tag
+
+            elif prefix_name.strip() != '':
                 attr_parts.append(f'id="{prefix_name+'_'+element_id}"')
+                self.idList[prefix_name+'_'+element_id] = html_tag
             else:
                 attr_parts.append(f'id="{element_id}"')
+                self.idList[element_id] = html_tag
 
 
         # Process attributes smoothly
@@ -641,7 +658,7 @@ class Component:
             if k_lower == "id":
                 continue
 
-            v = processParams(v,props_dict)
+            v = processParams(v,props_dict,defaults=self.defaults)
 
             if k_lower == "innertext":
                 inner_text = v
@@ -689,12 +706,12 @@ class Component:
             unique_id
         )
 
-        string_html = f"<div id={unique_id}>{string_html}</div>"
+        string_html = f"<div id='{unique_id}_head'>{string_html}</div>"
 
-        self.pyui_instance.RegisterUnmanagedNode(unique_id,'div')
+        self.pyui_instance.RegisterUnmanagedNode(unique_id+"_head",'div')
         # registered nodes
         for element_id in self.idList:
-            self.pyui_instance.RegisterUnmanagedNode(unique_id+'_'+element_id,self.idList[element_id].tag)
+            self.pyui_instance.RegisterUnmanagedNode(element_id,self.idList[element_id])
 
 
         #send syscall to add the node
