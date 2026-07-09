@@ -357,6 +357,7 @@ async def Handle_Send(websocket):
             priority, timestamp, msg = await ASYNC_LOOP.run_in_executor(None, SEND_QUEUE.get)
         except:
             print("[BOOTS] Exiting dispatcher cleanly.")
+            break
 
         if msg.syscall == SysCall['START'] and not  is_started:
             print("START command received...")
