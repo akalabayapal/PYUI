@@ -64,7 +64,7 @@ Go to the project directory
 
 To compile to a PYUI project and run it
 
-    python -m PYUI.buildtools --compile ./ --run
+    python -m PYUI.manage --compile ./ --run
 
 This command will compile your project into a PYUI project and run it. Within few seconds(depending on project size) you can see your project load in a while.
 
@@ -73,7 +73,7 @@ This command will compile your project into a PYUI project and run it. Within fe
 
 To compile without running project
 
-    python -m PYUI.buildtools --compile ./
+    python -m PYUI.manage --compile ./
 
 It will save your project in *build/temp_xxxxx.yyyy* (see last line of buildscript output). To launch the project go to the directory and run:
 
@@ -83,7 +83,7 @@ It will launch your UI
 
 To compile to a executable
 
-    python -m PYUI.buildtools --compileexe ./ --name HelloWorldApp
+    python -m PYUI.manage --compileexe ./ --name HelloWorldApp
 
 This command will make a *debug* folder go to that folder and run *HelloWorldApp.exe*
 
@@ -116,7 +116,7 @@ TO change layouts open the *layouts/index.xml* and change the layout as per your
 
 You can hot-reload the layout for faster UI development.
 
-    python -m PYUI.buildtools --hotreload layouts/index.xml
+    python -m PYUI.manage --hotreload layouts/index.xml
 
 **Note:** Replace with your file name
 
@@ -124,8 +124,9 @@ Changing the xml file will reload the UI automatically
 
 If you are using styles from some folder that is not present in styles folder of the xml-file directory then
 
-    python -m PYUI.buildtools --hotreload <layout-xml-file> --stylepath <custom-styles-folder>
-   
+    python -m PYUI.manage --hotreload <layout-xml-file> --stylepath <custom-styles-folder>
+
+![hot reload image](assets/hotreload.png)   
 
 
 **Note:** Use the *--keepontop* flag to keep the UI on top always
