@@ -23,9 +23,11 @@ import hashlib
 import secrets
 from PYUI.Package.PYUI import PYUI
 import pickle
-
+import warnings
+import colorama
 class UnkownSyscallUpdate(Exception):
     pass
+class JSRuntimeError(Exception):pass
 
 
 # =====================================================================
@@ -123,6 +125,16 @@ class ConsoleRouter:
     def log(self, message):
         # This catches anything sent from JS and prints it in your Python terminal
         print(f"[JS Console] {message}")
+    def warn(self,message):
+
+        warnings.warn(colorama.Fore.YELLOW+message+colorama.Fore.RESET)
+
+    
+    def error(self,message):
+
+        raise JSRuntimeError(colorama.Fore.RED+message+colorama.Fore.RESET)
+   
+
 
 # Generate a secure 32-byte (256-bit) secret key
 # This utilizes your OS's highest-quality randomness source (like /dev/urandom)
@@ -288,7 +300,8 @@ class MsgHandler:
         else:
             toSend = {"uuid": msg.uuid, "id": uid,"type":'UNREGISTER_CALLBACK',"count":next(global_counter)}
         
-        del CALLBACK_HASHMAP[uid]
+        if uid in CALLBACK_HASHMAP:
+            del CALLBACK_HASHMAP[uid]
 
         sign = generate_message_signature(toSend,msg.uuid,secret_hex_string)
         toSend['sign'] = sign
@@ -340,7 +353,10 @@ async def Handle_Send(websocket):
     is_started = False
     print(f"[WebSocket Core] Polling Loop Active. Queue Memory Address: {id(SEND_QUEUE)}")
     while True:
-        priority, timestamp, msg = await ASYNC_LOOP.run_in_executor(None, SEND_QUEUE.get)
+        try:
+            priority, timestamp, msg = await ASYNC_LOOP.run_in_executor(None, SEND_QUEUE.get)
+        except:
+            print("[BOOTS] Exiting dispatcher cleanly.")
 
         if msg.syscall == SysCall['START'] and not  is_started:
             print("START command received...")
@@ -463,7 +479,9 @@ async def Handle_Send(websocket):
             SEND_QUEUE.task_done()
             break
 
+    
         SEND_QUEUE.task_done()
+      
     
 async def listen_for_messages(websocket):
     try:
@@ -723,6 +741,8 @@ def BootStrapper(entryfile):
     MAIN_THREAD_QUEUE.put(Message(SysCall["END"]))
 
     print("[Main Thread] Window closed cleanly. Application terminating.")
+
+    os._exit(0) #close all reminant threads and shutdown
    
 if __name__ == "__main__":
     multiprocessing.freeze_support()

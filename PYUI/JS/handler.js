@@ -20,6 +20,34 @@ function getNestedValue(obj, path) {
     return result !== undefined ? result : null;
 }
 
+function deleteNestedValue(obj, path) {
+    // If obj is invalid or path is not a string, return false
+    if (!obj || typeof path !== 'string') return false;
+
+    const keys = path.split('.');
+    let current = obj;
+
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+
+        // If the path doesn't exist, we can't delete anything (return false)
+        if (current === null || current === undefined || !(key in current)) {
+            return false;
+        }
+
+        // If we are at the last key, delete it from the parent object
+        if (i === keys.length - 1) {
+            delete current[key];
+            return true; // Success
+        }
+
+        // Move deeper into the object tree
+        current = current[key];
+    }
+
+    return false;
+}
+
 function setNestedValue(obj, path, value) {
     // If obj is invalid or path is not a string, return false (operation failed)
     if (!obj || typeof path !== 'string') return false;
@@ -210,7 +238,7 @@ async function sendSyscall(syscall, msg) {
         GLOBAL_SOCKET.send(JSON.stringify(toSend));
     }
     else {
-        console.log("Error:The callback " + syscall + " is not registered.");
+        console.error("The callback " + syscall + " is not registered.");
     }
 }
 
@@ -248,9 +276,9 @@ class Msghandler {
             else if (type == "REGISTER_CALLBACK") {
                 var id = jsonMessage.id;
                 var typeCallback = jsonMessage.callback_type;
-                var wrapper = this.registerCallback(id, typeCallback, uuid);
+                var signal = await this.registerCallback(id, typeCallback, uuid);
 
-                var container = { wrap: wrapper, type: typeCallback, Eleid: id };
+                var container = { signal: signal, type: typeCallback, Eleid: id };
                 this.callBackWrappers[uuid] = container;
                 //console.log("Callback wrappers:",JSON.stringify(this.callBackWrappers));
             }
@@ -264,13 +292,16 @@ class Msghandler {
                     const cont = this.callBackWrappers[uuid_callback];
                     const id = cont.Eleid;
                     const type = cont.type;
-                    const wrap = cont.wrap;
-                    document.getElementById(id).removeEventListener(type, wrap);
+                    const signal = cont.signal;
+                    
+
+                    // abort the signal
+                    signal.abort();
 
                     delete this.callBackWrappers[uuid_callback];
                 }
                 catch (ex) {
-                    console.log("[Error] Can not remove callback", ex);
+                    console.warn("[Error] Can not remove callback", ex);
 
                 }
             }
@@ -282,7 +313,28 @@ class Msghandler {
 
                 const val = getNestedValue(element,attrib);
 
-                if (attrib == 'text') {
+
+                if(attrib.includes(":"))
+                {
+                    const style = attrib.split(":")[1];
+                    const computed_style = window.getComputedStyle(element);
+                    
+                    if(style === 'all'){
+                        var value = computed_style; // return whole
+                    }
+                    else if(style in computed_style)
+                    {
+                        var value = computed_style[style];
+                    }
+                    else{
+                        console.error(`No style attribute ${style} found for id:${id}`);
+                        return;
+                    }
+                    
+
+                }
+
+                else if (attrib == 'text') {
                     var value = element.textContent;
                 }
                 else if (val != null) {
@@ -305,7 +357,7 @@ class Msghandler {
                 }
                 
                 if(!value){
-                    console.log(`Error:No attribute ${attrib} found for id:${id}`);
+                    console.error(`No attribute ${attrib} found for id:${id}`);
                 }
 
                 _HandleGrbContent(uuid, this.socket, value);
@@ -332,14 +384,14 @@ class Msghandler {
                     callback(jsonMessage);
                 }
                 else {
-                    console.log("[Error] No associated callback for custom syscall:" + type);
+                    console.error("[Error] No associated callback for custom syscall:" + type);
                 }
             }
 
         }
         else {
             
-            console.log("Wrong uuid or signature did not match.Hence dropping the packet.");
+            console.warn("Wrong uuid or signature did not match.Hence dropping the packet.");
         }
     }
 
@@ -379,7 +431,7 @@ class Msghandler {
                     ele.setAttribute(att, value);
                 }
                 else{
-                    console.log(`Error:No attribute/property:${att} found for id:${id}`);
+                    console.error(`No attribute/property:${att} found for id:${id}`);
                 }
             }
 
@@ -398,7 +450,7 @@ class Msghandler {
                 ele.style[att] = value;
             }
             else {
-                console.log(`Error: No style attribute named:${att} found for id:${id}.`)
+                console.error(`No style attribute named:${att} found for id:${id}.`)
             }
 
         }
@@ -410,7 +462,19 @@ class Msghandler {
             var id = args.id;
             var att = args.att;
             var ele = document.getElementById(id);
-            ele.removeAttribute(att);
+
+            var del = deleteNestedValue(ele,att);
+
+            if(!del)
+            {
+                if(att in ele)
+                {
+                   ele.removeAttribute(att);  // If it is not a properly delete it as a attribute
+                }
+                else{
+                    console.error(`No style attribute named:${att} found for id:${id}.`)
+                }
+            }
 
         }
     }
@@ -419,6 +483,7 @@ class Msghandler {
 
         //To handle the REGISTER_CALLBACK syscalls...
         var element = document.getElementById(id);
+        const signalController = new AbortController();
         var wrapper = (event) => {
 
 
@@ -433,10 +498,10 @@ class Msghandler {
         };
 
         if (element) {
-            element.addEventListener(eventType, wrapper);
+            element.addEventListener(eventType, wrapper,{signal:signalController.signal});
         }
 
-        return wrapper;
+        return signalController;
 
 
     }

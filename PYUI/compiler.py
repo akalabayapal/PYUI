@@ -290,6 +290,15 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
         # This replaces the <Component> tag with the actual inner nodes seamlessly
         baked_component_tree = bake_strict_c_tree_to_python(real_component_root, id_windows, id_index_map, project_dir, mangling=name,processProps=processProps,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
 
+        #Change the cache back to done processing back to normal
+        if isbuildscript:
+            temp_cache[file][1] = IMPORT_STATE.done_processing
+        else:
+            CACHE_COMPONENTS[file][1] = IMPORT_STATE.done_processing
+
+        
+        
+        
         # 2. Grab the sibling that was waiting AFTER the <Component> tag in the parent container
         sibling_ptr = c_node.nextSibling
         if sibling_ptr and sibling_ptr.contents.tag and sibling_ptr.contents.tag.decode('utf-8') in ["TEXT", "<TEXT>"]:
@@ -297,6 +306,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
 
         # 3. If a sibling exists, traverse to the end of the new component tree and stitch it on
         if sibling_ptr and baked_component_tree:
+       
             # Crawl to the absolute right-most sibling of the newly injected sub-tree
             last_sibling = baked_component_tree
             while last_sibling.nextSibling:
@@ -304,12 +314,6 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
             
             # Stitch the parent's remaining layout tags right onto the end of the component chain
             last_sibling.nextSibling = bake_strict_c_tree_to_python(sibling_ptr, id_windows, id_index_map, project_dir, mangling=name,processProps=processProps,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
-
-        #Change the cache back to done processing back to normal
-        if isbuildscript:
-            temp_cache[file][1] = IMPORT_STATE.done_processing
-        else:
-            CACHE_COMPONENTS[file][1] = IMPORT_STATE.done_processing
 
         return baked_component_tree
         
@@ -319,6 +323,9 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
     for i in range(c_node.attrcount):
         k:str = c_node.attrKey[i].decode('utf-8').strip()
         v = c_node.attrVal[i].decode('utf-8').strip()
+
+        if k == "":
+            continue
 
 
         if mangling.strip() != "":

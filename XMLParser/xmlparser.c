@@ -160,6 +160,8 @@ void TagParser(char paramsstring[], int size, DOMNode *node)
     bool isparsingParamValue = false;
     bool paramskeyinit = false;
     char startchar = ' ';
+    bool insidequote = false;
+
 
     char key[size][512];
 
@@ -172,7 +174,7 @@ void TagParser(char paramsstring[], int size, DOMNode *node)
     {
         char content = paramsstring[i];
 
-        if (content == '=')
+        if (content == '=' && !insidequote)
         {
             // Change the operation from key to params
             isparsingParamkey = false;
@@ -203,6 +205,7 @@ void TagParser(char paramsstring[], int size, DOMNode *node)
 
                         //printf("Debug:params value recording stopped...\n");
                         // stop it
+                        insidequote = false;
                         isparsingParamValue = false;
                         isparsingParamkey = true;
                         paramskeyinit = false;
@@ -227,6 +230,7 @@ void TagParser(char paramsstring[], int size, DOMNode *node)
                 else
                 {
                     //printf("Debug:value recording started..\n");
+                    insidequote = true;
                     startchar = content; // Store the current char so that we can match it in time of the closing
                     paramskeyinit = true;
                 }
@@ -337,6 +341,7 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
     char *contentprocessed = (char *)malloc(sizeof(char) * (ContentLength) + 1);
     int contentlen = 0;
     int offset = 0;
+    char quotechar;
 
     bool isInsideQuote = false;
 
@@ -344,9 +349,24 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
     {
         char charecter = htmlContent[i];
 
-        if(charecter == '"')
+        if (charecter == '"' || charecter == '\'')
         {
-            isInsideQuote = !isInsideQuote;
+            if(isInsideQuote)
+            {
+                // We need to check if the quote is correct one and then stop else ignore
+                if(charecter == quotechar)
+                {
+                    isInsideQuote = false; // stop it
+                    quotechar = ' ';
+                }
+                // else it will be ignored
+            }
+            else
+            {
+                // this is the starting make isIndsideQuote True and store the quote
+                isInsideQuote = true;
+                quotechar = charecter;
+            }
         }
 
         if (charecter == '<' && isInsideQuote==false && isInitTagStarted == false)

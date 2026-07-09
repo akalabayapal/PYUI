@@ -370,11 +370,6 @@ class PYUI:
         node:PyUILayoutNode = self.id_map[id]
         return node.tag
     
-    def GetAllAttrib(self,id):
-        if not id in self.id_map:
-            raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        node:PyUILayoutNode = self.id_map[id]
-        return node.attributes()
     
     def set(self,id,attribute,value,ret=False):
         if not id in self.id_map:
@@ -393,6 +388,16 @@ class PYUI:
         param = camelCaseConverter(attribute)
         return self.__ExecuteJS({"id":id,"att":param,"value":value},'updateStyle',ret=ret)
     
+    def getStyle(self,id,style):
+        if not id in self.id_map:
+            raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
+        q = queue.Queue(1)
+        msg = Message(SysCall['CONTENT_GRAB'],{"id":id,"attrib":"style:"+camelCaseConverter(style),"queue":q})
+        self.SQ.put((SysCall['CONTENT_GRAB'],next(self.counter),msg))
+        val = q.get()
+        return val
+
+    
     def changeClass(self,id:str,className:str,action:str,ret=False):
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
@@ -401,19 +406,26 @@ class PYUI:
             raise ClassChangeActionNotFoundError(f'[Runtime Error Log] Cannot handle action:{action}')
         
         action = action.lower().strip()
-        toRet = self.__ExecuteJS({"id":id,"action":action.upper().strip(),"class":className},"addstyleclass",ret=ret)
+
         node:PyUILayoutNode = self.id_map[id]
         if cleaned_action == 'ADD':
             if not className in node.style_class_arr:
                 node.style_class_arr[className] = True
+                toRet = self.__ExecuteJS({"id":id,"action":action.upper().strip(),"class":className},"addstyleclass",ret=ret)
+
         elif cleaned_action == 'REMOVE':
             if not className in node.style_class_arr:
                 raise StyleClassNotFoundError(f'[Runtime Error Log] Class {className} not found.')
             del node.style_class_arr[className]
+            toRet = self.__ExecuteJS({"id":id,"action":action.upper().strip(),"class":className},"addstyleclass",ret=ret)
+
         elif cleaned_action == 'TOGGLE':
             if not className in node.style_class_arr:
                 node.style_class_arr[className] = True
+                toRet = self.__ExecuteJS({"id":id,"action":"ADD","class":className},"addstyleclass",ret=ret)
+
             else:
+                toRet = self.__ExecuteJS({"id":id,"action":"REMOVE","class":className},"addstyleclass",ret=ret)
                 del node.style_class_arr[className]
         return toRet
  
@@ -430,12 +442,6 @@ class PYUI:
         node.set("innerText",newText)
         return self.__ExecuteJS({"id":id,"text":newText},'updateText',ret=ret)
 
-    def removeAttrib(self,id,attribute,ret=False):
-        if not id in self.id_map:
-            raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
-        if not attribute in self.id_map[id]._attributes and attribute != 'style':
-            raise AttributeNotFoundError(f"Attribute {attribute} not found.")
-        return self.__ExecuteJS({"id":id,"att":attribute},'remove',ret=ret)
 
     def changeWindow(self,id):
         if not id in self.id_map:
@@ -573,22 +579,11 @@ class PYUI:
             self.UnRegisterCallBack(idofcallback,typeofCallback)
         del self.id_map[id]
 
-    def setWindowTitle(self,title:str):
-        self.__window.set_title(title)
-    def SetisOnTop(self,isontop):
-        self.__window.on_top = isontop
-    def GetisOnTop(self) -> bool:
-        return self.__window.on_top 
-    def getX(self) -> int:
-        return self.__window.x
-    def getY(self) ->int:
-        return self.__window.y
-    def getResolution(self) -> dict:
-        return self.__window.width,self.__window.height
-    def Hide(self):
-        self.__window.hide()
-    def Show(self):
-        self.__window.show()
+    def getWindow(self):
+
+        # return the PYwebview window
+
+        return self.__window
 
 class Component:
 
@@ -688,13 +683,9 @@ class Component:
     
     def __addComponent(self,parentID:str,mode,**props):
 
-        if mode == 'after':
-            if parentID not in self.component_list:
-                raise IdNotFoundError(f'Given component id:{parentID} is not found.')
-
-        else:
-            if parentID not in self.pyui_instance.id_map:
-                raise IdNotFoundError(f'Given parent id:{parentID} is not found.')
+      
+        if parentID not in self.pyui_instance.id_map:
+            raise IdNotFoundError(f'Given parent id:{parentID} is not found.')
 
         unique_id = uuid.uuid4().hex
         

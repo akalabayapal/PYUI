@@ -45,6 +45,21 @@ function connectSocket(port) {
 }
 
 
+// Enabling error on bad JS eventlisner
+const originalAddEventListener = Element.prototype.addEventListener;
+
+Element.prototype.addEventListener = function(type, callback, options) {
+  const propName = 'on' + type.toLowerCase();
+  
+  // Warn the developer if they passed an invalid name, but ignore custom events
+  if (!(propName in this)) {
+    console.warn(`Warning: "${type}" might not be a valid native event for this element.`);
+  }
+  
+  // Proceed with standard behavior anyway
+  return originalAddEventListener.call(this, type, callback, options);
+};
+
 
 
 //Console log routing to main python console
@@ -55,6 +70,28 @@ console.log = function () {
     // Send to Python API
     if (window.pywebview && window.pywebview.api) {
         window.pywebview.api.log(message);
+    }
+
+};
+
+//Console log routing to main python console
+console.warn = function () {
+    // Convert arguments to a single string
+    var message = Array.from(arguments).join(' ');
+
+    // Send to Python API
+    if (window.pywebview && window.pywebview.api) {
+        window.pywebview.api.warn(message);
+    }
+
+};
+console.error = function () {
+    // Convert arguments to a single string
+    var message = Array.from(arguments).join(' ');
+
+    // Send to Python API
+    if (window.pywebview && window.pywebview.api) {
+        window.pywebview.api.error(message);
     }
 
 };
