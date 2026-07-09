@@ -1,4 +1,4 @@
-from PYUI.Package.PYUI import PYUI
+from PYUI.Package.PYUI import PYUI,Element
 
 
 def entry(obj:PYUI):

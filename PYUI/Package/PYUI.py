@@ -420,12 +420,11 @@ class PYUI:
             toRet = self.__ExecuteJS({"id":id,"action":action.upper().strip(),"class":className},"addstyleclass",ret=ret)
 
         elif cleaned_action == 'TOGGLE':
+            toRet = self.__ExecuteJS({"id":id,"action":"TOGGLE","class":className},"addstyleclass",ret=ret)
             if not className in node.style_class_arr:
                 node.style_class_arr[className] = True
-                toRet = self.__ExecuteJS({"id":id,"action":"ADD","class":className},"addstyleclass",ret=ret)
 
             else:
-                toRet = self.__ExecuteJS({"id":id,"action":"REMOVE","class":className},"addstyleclass",ret=ret)
                 del node.style_class_arr[className]
         return toRet
  
@@ -579,11 +578,259 @@ class PYUI:
             self.UnRegisterCallBack(idofcallback,typeofCallback)
         del self.id_map[id]
 
-    def getWindow(self):
+    @property
+    def window(self):
 
         # return the PYwebview window
-
         return self.__window
+
+class StyleProxy:
+    """Handles element.style.any_property = value and reads them dynamically."""
+    def __init__(self, element_id, pyui_instance):
+        # Using __dict__ directly avoids infinite recursion inside __setattr__
+        self.__dict__['id'] = element_id
+        self.__dict__['pyui'] = pyui_instance
+
+    def __getattr__(self, name: str):
+        """Runs when developer reads: value = element.style.color"""
+        return self.pyui.getStyle(self.id, name)
+
+    def __setattr__(self, name: str, value):
+        """Runs when developer writes: element.style.color = 'red'"""
+        self.pyui.setStyle(self.id, name, value)
+
+    def __getitem__(self, item):
+        """Triggers automatically when someone slices: proxy[:-1]"""
+        # Fetch the real string from your engine first, then slice it!
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        return real_value[item]
+
+    def __len__(self):
+        """Triggers automatically when someone calls len(proxy)"""
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        return len(real_value)
+    
+    def __add__(self, other):
+        """Triggers when: proxy + "something" """
+        # Fetch the real string from your engine
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        # Cast the other side to a string just in case, then add them
+        return real_value + str(other)
+
+    def __radd__(self, other):
+        """Triggers when: "something" + proxy """
+        # Fetch the real string from your engine
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        return str(other) + real_value
+    
+    def __hash__(self):
+        """Allows the proxy to be used as a stable dictionary key by value."""
+        return hash(str(self.pyui.getAttrib(self.id, self.path)))
+
+    def __eq__(self, other):
+        """Allows direct equality comparison with strings: proxy == '5' """
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        if isinstance(other, AttribProxy):
+            return real_value == str(other.pyui.getAttrib(other.id, other.path))
+        return real_value == other
+
+    def __bool__(self):
+        """Triggers during truthy checks like: if calcout.attrib.value: """
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        return bool(real_value)
+
+
+class AttribProxy:
+    """Handles infinite nested paths like element.attrib.nested.path.prop = value"""
+    def __init__(self, element_id, pyui_instance, path=""):
+        self.__dict__['id'] = element_id
+        self.__dict__['pyui'] = pyui_instance
+        self.__dict__['path'] = path
+
+    def __getattr__(self, name: str):
+        """
+        Builds the dot-separated string path dynamically!
+        If they do element.attrib.user.name, this returns a new proxy tracking "user.name"
+        """
+        new_path = f"{self.path}.{name}" if self.path else name
+        return AttribProxy(self.id, self.pyui, new_path)
+
+    def __setattr__(self, name: str, value):
+        """Runs when they finally assign a value: element.attrib.user.name = 'Alex'"""
+        full_path = f"{self.path}.{name}" if self.path else name
+        # Fires right into your engine's functional updater pipeline!
+        self.pyui.set(self.id, full_path, value)
+
+    def __repr__(self):
+        """If they just print the attribute proxy directly, fetch the value from the DOM."""
+        if not self.path:
+            return "[Attributes Proxy Root]"
+        return str(self.pyui.getAttrib(self.id, self.path))
+    
+    def __getitem__(self, item):
+        """Triggers automatically when someone slices: proxy[:-1]"""
+        # Fetch the real string from your engine first, then slice it!
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        return real_value[item]
+
+    def __len__(self):
+        """Triggers automatically when someone calls len(proxy)"""
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        return len(real_value)
+
+    def __add__(self, other):
+        """Triggers when: proxy + "something" """
+        # Fetch the real string from your engine
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        # Cast the other side to a string just in case, then add them
+        return real_value + str(other)
+
+    def __radd__(self, other):
+        """Triggers when: "something" + proxy """
+        # Fetch the real string from your engine
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        return str(other) + real_value
+    
+    def __hash__(self):
+        """Allows the proxy to be used as a stable dictionary key by value."""
+        return hash(str(self.pyui.getAttrib(self.id, self.path)))
+
+    def __eq__(self, other):
+        """Allows direct equality comparison with strings: proxy == '5' """
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        if isinstance(other, AttribProxy):
+            return real_value == str(other.pyui.getAttrib(other.id, other.path))
+        return real_value == other
+
+    def __bool__(self):
+        """Triggers during truthy checks like: if calcout.attrib.value: """
+        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        return bool(real_value)
+
+
+class Element:
+    def __init__(self, id: str, pyui_instance: PYUI):
+        """
+        Initializes an object-oriented wrapper around a specific UI node layout.
+        
+        :param id: The unique layout identifier string of the element.
+        :param pyui_instance: The active instance of the core PYUI runtime.
+        :raises IdNotFoundError: If the provided id does not exist in the layout tree's index map.
+        """
+        if id not in pyui_instance.id_map:
+            raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
+            
+        self.id = id
+        self.pyui = pyui_instance
+    
+    @property
+    def style(self) -> StyleProxy:
+        """Exposes the style proxy engine layer."""
+        return StyleProxy(self.id, self.pyui)
+
+    @property
+    def attrib(self) -> AttribProxy:
+        """Exposes the infinite nested attribute path builder layer."""
+        return AttribProxy(self.id, self.pyui)
+
+    # ==========================================================================
+    # 1. PROPERTIES (Getters & Setters)
+    # ==========================================================================
+
+    @property
+    def text(self) -> str:
+        """
+        Gets the inner text content of the element from the live DOM view.
+        Usage: current_text = element.text
+        """
+        # Under the hood, PYUI handles 'text' specifically to grab textContent
+        return self.pyui.getAttrib(self.id, "text")
+
+    @text.setter
+    def text(self, new_text):
+        """
+        Updates the inner text content of the element inside the webview interface.
+        Usage: element.text = "Hello World"
+        """
+        self.pyui.setText(self.id, str(new_text))
+
+    @property
+    def tag(self) -> str:
+        """
+        Gets the structural HTML/CML tag type of this element node (Read-Only).
+        Usage: print(element.tag)  -> Outputs: "button", "div", "input", etc.
+        """
+        return self.pyui.getTag(self.id)
+
+    @property
+    def classes(self) -> list[str]:
+        """
+        Gets a list of all CSS/Tailwind classes currently applied to this element (Read-Only).
+        Usage: current_classes = element.classes
+        """
+        return self.pyui.getClassList(self.id)
+
+    # ==========================================================================
+    # 2. DYNAMIC ATTRIBUTE & STYLE HELPERS
+    # ==========================================================================
+
+    def get_attribute(self, attribute_name: str):
+        """Gets any custom structural attribute or property from the node."""
+        return self.pyui.getAttrib(self.id, attribute_name)
+
+    def set_attribute(self, attribute_name: str, value, ret=False):
+        """Sets an explicit structural attribute or property on the layout element."""
+        return self.pyui.set(self.id, attribute_name, value, ret=ret)
+
+    def get_style(self, style_name: str):
+        """Grabs the computed layout engine value of a specific style option."""
+        return self.pyui.getStyle(self.id, style_name)
+
+    def set_style(self, style_name: str, value, ret=False):
+        """Directly writes or overrides an inline CSS/style instruction."""
+        return self.pyui.setStyle(self.id, style_name, value, ret=ret)
+
+    # ==========================================================================
+    # 3. ACTION-BASED METHODS
+    # ==========================================================================
+
+    def add_class(self, class_name: str, ret=False):
+        """Appends a new Tailwind or CSS utility class designation to this element."""
+        return self.pyui.changeClass(self.id, class_name, "ADD", ret=ret)
+
+    def remove_class(self, class_name: str, ret=False):
+        """Removes an active Tailwind or CSS utility class designation from this element."""
+        return self.pyui.changeClass(self.id, class_name, "REMOVE", ret=ret)
+
+    def toggle_class(self, class_name: str, ret=False):
+        """Toggles a Tailwind/CSS class designation on or off depending on current state."""
+        return self.pyui.changeClass(self.id, class_name, "TOGGLE", ret=ret)
+
+    def show_window(self):
+        """Routes focus to hide sibling panes and treat this node component layout as primary window."""
+        return self.pyui.changeWindow(self.id)
+
+    def get_raw_node(self) -> PyUILayoutNode:
+        """Retrieves the raw thread-local instance node tracker from the layout dictionary."""
+        return self.pyui.getPYUIRawNode(self.id)
+
+    # ==========================================================================
+    # 4. EVENT LISTENER BINDINGS
+    # ==========================================================================
+
+    def on(self, event_type: str, callback, args: tuple = ()):
+        """
+        Binds a background execution thread callback to an element interaction trigger.
+        Usage: element.on("click", click_handler)
+        """
+        return self.pyui.RegisterCallback(self.id, event_type, callback, args=args)
+
+    def off(self, event_type: str):
+        """
+        Unregisters an active event listener thread tied to this element.
+        Usage: element.off("click")
+        """
+        return self.pyui.UnRegisterCallBack(self.id, event_type)
 
 class Component:
 
@@ -732,10 +979,7 @@ class Component:
         self.pyui_instance.sendSyscall('REM_NODE',json.dumps(toSend))
         
 
-        
-
-
-
+    
 class Pipeline:
     def __init__(self):
         self.steps = []

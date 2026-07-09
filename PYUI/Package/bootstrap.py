@@ -85,6 +85,8 @@ global_counter = itertools.count()
 
 # Create a proper thread-safe signaling flag near your other globals
 KERNEL_READY = threading.Event()
+is_started = False
+
 
 # Global reference to the engine's main asynchronous network event loop
 ASYNC_LOOP = None
@@ -350,11 +352,13 @@ class MsgHandler:
 
 
 async def Handle_Send(websocket):
-    is_started = False
+    global is_started
+
     print(f"[WebSocket Core] Polling Loop Active. Queue Memory Address: {id(SEND_QUEUE)}")
     while True:
         try:
             priority, timestamp, msg = await ASYNC_LOOP.run_in_executor(None, SEND_QUEUE.get)
+        
         except:
             print("[BOOTS] Exiting dispatcher cleanly.")
             break
@@ -563,6 +567,7 @@ async def handle_client(websocket: websockets):
     # Directly send a START command after cleaning queue
     msg = Message(SysCall['START'],'')
     SEND_QUEUE.put((SysCall['START'],time.time(),msg))
+    print("STARTED")
 
     ACTIVE_CONNECTIONS.add(websocket)
 
