@@ -49,6 +49,12 @@ _thread_context = threading.local()
 FALLBACK_EXECUTION_QUEUE = queue.Queue()
 
 def processParams(v:str,props:dict,defaults:dict={}):
+
+    '''
+    Handler for processing props for dynamic components
+    props: Dict containing the props available
+    default: the default props
+    '''
     if not '{' in v:
         return v #no need to process params without props
     
@@ -113,6 +119,9 @@ def processParams(v:str,props:dict,defaults:dict={}):
 
 
 def resource_path(*parts):
+    '''
+    Handler for converting a simple path to path respective to curr dir or dir of frozen if compiled to frozen
+    '''
     if getattr(sys, "frozen", False):
         base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
     else:
@@ -149,6 +158,9 @@ _fallback_thread.start()
 # 2. DSU GROUP ENGINE (Serializes both execution and writes for grouped items)
 # ==============================================================================
 class CallbackDSU:
+    '''
+    Class to serilize execute the callbacks....
+    '''
     def __init__(self):
         self.parent = {}
         self.group_queues = {}  # Maps group root -> queue.Queue
@@ -234,6 +246,9 @@ class Message:
 
 
 def _callback_handler(callback, q: queue.Queue, obj,args:tuple):
+    '''
+    Waits for callback and dispatches it to correct queue
+    '''
     raw_callback = callback.__func__ if hasattr(callback, '__func__') else callback
     
     while True:
@@ -267,6 +282,9 @@ def _callback_handler(callback, q: queue.Queue, obj,args:tuple):
                 obj.End()
 
 def camelCaseConverter(txt: str):
+    '''
+    Handler to convert the text like background-color to backgroundColor(camel case)
+    '''
     offset = 0
     length = len(txt)
     formatted = ""
@@ -283,6 +301,7 @@ def camelCaseConverter(txt: str):
     return formatted
 
 
+# Errors defined
 class IdNotFoundError(Exception): pass
 class ClassChangeActionNotFoundError(Exception): pass
 class CallbackNotFoundError(Exception): pass
@@ -707,6 +726,197 @@ class AttribProxy:
         real_value = str(self.pyui.getAttrib(self.id, self.path))
         return bool(real_value)
 
+class LayoutResult(tuple):
+    """
+    A smart tuple subclass containing (id_tuple, element_instance).
+    Unpacks like a normal tuple, but allows continuous '+' chaining!
+    """
+    def __new__(cls, ids: tuple, element):
+        # Initialize the underlying tuple as (ids, element)
+        return super().__new__(cls, (ids, element))
+
+    def __init__(self, ids: tuple, element):
+        self.ids = ids
+        self.element = element
+
+    def __add__(self, other: tuple):
+        # Intercept the next chain link!
+        # other is (props, instance) from componentObj()
+        if type(other) != tuple or len(other) < 2:
+            raise TypeError("Can only chain components.")
+            
+        props, instance = other[0], other[1]
+        
+        # Inject the next component using the saved element ID!
+        new_id = instance.appendComponent(self.element.id, **props)
+        
+        # Accumulate the new ID and pass the chain forward
+        return LayoutResult(self.ids + (new_id,), self.element)
+
+
+class Component:
+
+    def __init__(self,obj:PYUI,componentName:str):
+        '''
+        To load a component dynamically 
+        '''
+        self.component_name = componentName.strip()+'.bin'
+        self.pyui_instance = obj
+
+        self.load = pickle.load(
+            open(
+            resource_path('compiled_components',componentName.strip()+'.bin')
+            ,'rb')
+            )
+        self.tree = self.load['layout_tree']
+        self.defaults = self.load['component_defaults']
+        self.idList = {}
+
+        self.component_list = {}
+
+        
+
+    def __convert_node_to_html(self,node,HTML_TAG_CONVERSION_MAP:dict,LAYOUT_CONTAINER_TAGS:dict,props_dict:dict,prefix_name:str='') -> str:
+        if not node:
+            return ""
+
+        # CRITICAL: Always enforce lower-casing immediately at entry point
+        tag_lower = node.tag.lower().strip()
+
+        if tag_lower == 'componentfile':
+            tag_lower = node.tag.strip()
+
+
+        #IMPORTANT:No styles tag after main-content.if found it will trigger warning
+        if tag_lower == "style":
+            warnings.warn("Styles inside and below main-content are not evaluated.Please link them out of main content and 'above it'",SyntaxWarning)
+
+        html_tag = HTML_TAG_CONVERSION_MAP.get(tag_lower, tag_lower)
+
+        attr_parts = []
+        inner_text = "" 
+
+        element_id:str = getattr(node, 'id', None)
+        if element_id:
+
+            if element_id.strip().startswith("dyn_id"):
+                element_id = prefix_name
+                if element_id in self.idList:
+                    raise RuntimeError("Can not keep more than one id blank inside main component.")
+                
+                attr_parts.append(f'id="{element_id}"')
+                self.idList[element_id] = html_tag
+
+            elif prefix_name.strip() != '':
+                attr_parts.append(f'id="{prefix_name+'_'+element_id}"')
+                self.idList[prefix_name+'_'+element_id] = html_tag
+            else:
+                attr_parts.append(f'id="{element_id}"')
+                self.idList[element_id] = html_tag
+
+
+        # Process attributes smoothly
+        for k, v in node.attributes().items():
+            k_lower = k.lower().strip()
+
+            if k_lower == "id":
+                continue
+
+            v = processParams(v,props_dict,defaults=self.defaults)
+
+            if k_lower == "innertext":
+                inner_text = v
+            elif k_lower == "style-class":
+                attr_parts.append(f'class="{v}"')
+            else:
+                attr_parts.append(f'{k}="{v}"')
+
+        if tag_lower == "window":
+            raise RuntimeError('windows are not allowed inside components')
+
+        attr_str = " " + " ".join(attr_parts) if attr_parts else ""
+
+        # CASE A: Leaf Widgets - Close immediately
+        if tag_lower not in LAYOUT_CONTAINER_TAGS:
+            return f"<{html_tag}{attr_str}>{inner_text}</{html_tag}>\n"
+
+        # CASE B: Layout Containers - Process internal tree nodes explicitly before closing
+        child_content = ""
+        current_child = node.firstChild
+        while current_child:
+            child_content += self.__convert_node_to_html(current_child,LAYOUT_CONTAINER_TAGS=LAYOUT_CONTAINER_TAGS,HTML_TAG_CONVERSION_MAP=HTML_TAG_CONVERSION_MAP,props_dict=props_dict,prefix_name=prefix_name)
+            current_child = current_child.nextSibling
+
+        # Children are now safely locked inside the parent tag container!
+        return f"<{html_tag}{attr_str}>\n{child_content}</{html_tag}>\n"
+    
+    def __addComponent(self,parentID:str,mode,**props):
+
+        self.idList = {}
+        if parentID not in self.pyui_instance.id_map:
+            raise IdNotFoundError(f'Given parent id:{parentID} is not found.')
+
+        unique_id = uuid.uuid4().hex
+        
+        string_html = self.__convert_node_to_html(
+            self.tree,
+            self.pyui_instance.config.HTML_TAG_CONVERSION_MAP,
+            self.pyui_instance.config.LAYOUT_CONTAINER_TAGS,
+            props,
+            unique_id
+        )
+
+        string_html = f"<div id='{unique_id}_head'>{string_html}</div>"
+
+        self.pyui_instance.RegisterUnmanagedNode(unique_id+"_head",'div')
+        # registered nodes
+        for element_id in self.idList:
+            self.pyui_instance.RegisterUnmanagedNode(element_id,self.idList[element_id])
+
+
+        #send syscall to add the node
+        toSend = {'parent_id':parentID,'html_to_add':string_html,"mode":mode}
+        self.pyui_instance.sendSyscall('ADD_NODE_END',json.dumps(toSend))
+
+        self.component_list[unique_id] = True
+
+        return unique_id
+    
+    def appendComponent(self,parentID:str,**props):
+        '''
+        Add component at end of parent id
+        '''
+        return self.__addComponent(parentID,'append',**props)
+    
+    def addComponentTop(self,parentID:str,**props):
+        '''
+        Add component at very top
+        '''
+        return self.__addComponent(parentID,'top',**props)
+
+    def addComponentAfter(self,preceedingID:str,**props):
+        '''
+        To insert after certain component
+        '''
+        return self.__addComponent(preceedingID,'after',**props)
+    
+    def removeComponent(self,node_id:str):
+        '''
+        To remove a component of this scope
+        '''
+
+        if not node_id in self.component_list:
+            raise IdNotFoundError(f'The given node id:{node_id} not found or is out of scope of this class.')
+        
+        toSend = {"id":node_id}
+        
+        self.pyui_instance.sendSyscall('REM_NODE',json.dumps(toSend))
+
+    def object(self,**props) -> tuple:  
+        '''
+        Stage the component props for easier + semantics using Elements
+        '''    
+        return (props,self)
 
 class Element:
     def __init__(self, id: str, pyui_instance: PYUI):
@@ -722,7 +932,54 @@ class Element:
             
         self.id = id
         self.pyui = pyui_instance
+
     
+    def __add__(self, other:tuple):
+
+        #add after the component
+        if type(other) != tuple:
+            raise TypeError("Can only concatinate Element+componentObj(tuple) or componentObj+Element.")
+        
+        props,instance = other
+
+        
+        new_id = instance.appendComponent(self.id, **props)
+        
+        # 2. Start the LayoutResult chain!
+        return LayoutResult((new_id,), self)
+        
+    def __radd__(self, other):
+        # Handle pre-addition: component + view or component + component + view
+        if type(other) != tuple:
+            raise TypeError("Can only concatenate componentObj(tuple) + Element.")
+        
+        # Every componentObj is a pair of 2 items: (props, instance)
+        if len(other) % 2 != 0:
+            raise TypeError("Invalid componentObj chain structure.")
+
+        inserted_ids = []
+        
+        # Loop backwards through the tuple chunks (2 steps at a time)
+        # This ensures the component closest to the view is added first!
+        for i in range(len(other) - 2, -1, -2):
+            props = other[i]
+            instance = other[i + 1]
+            
+            if type(props) != dict or type(instance) != Component:
+                raise TypeError("Invalid item inside componentObj chain.")
+                
+            # Add to the top of the container
+            new_id = instance.addComponentTop(self.id, **props)
+            inserted_ids.append(new_id)
+            
+        # Reverse the collected IDs so they match the left-to-right reading order
+        inserted_ids.reverse()
+        
+        # Return our LayoutResult chain tracking wrapper!
+        return LayoutResult(tuple(inserted_ids), self)
+        
+
+        
     @property
     def style(self) -> StyleProxy:
         """Exposes the style proxy engine layer."""
@@ -832,157 +1089,21 @@ class Element:
         """
         return self.pyui.UnRegisterCallBack(self.id, event_type)
 
-class Component:
-
-    def __init__(self,obj:PYUI,componentName:str):
-        '''
-        To load a component
-        '''
-        self.component_name = componentName.strip()+'.bin'
-        self.pyui_instance = obj
-
-        self.load = pickle.load(
-            open(
-            resource_path('compiled_components',componentName.strip()+'.bin')
-            ,'rb')
-            )
-        self.tree = self.load['layout_tree']
-        self.defaults = self.load['component_defaults']
-        self.idList = {}
-
-        self.component_list = {}
-
-        
-
-    def __convert_node_to_html(self,node,HTML_TAG_CONVERSION_MAP:dict,LAYOUT_CONTAINER_TAGS:dict,props_dict:dict,prefix_name:str='') -> str:
-        if not node:
-            return ""
-
-        # CRITICAL: Always enforce lower-casing immediately at entry point
-        tag_lower = node.tag.lower().strip()
-
-        if tag_lower == 'componentfile':
-            tag_lower = node.tag.strip()
 
 
-        #IMPORTANT:No styles tag after main-content.if found it will trigger warning
-        if tag_lower == "style":
-            warnings.warn("Styles inside and below main-content are not evaluated.Please link them out of main content and 'above it'",SyntaxWarning)
-
-        html_tag = HTML_TAG_CONVERSION_MAP.get(tag_lower, tag_lower)
-
-        attr_parts = []
-        inner_text = "" 
-
-        element_id:str = getattr(node, 'id', None)
-        if element_id:
-
-            if element_id.strip().startswith("dyn_id"):
-                element_id = prefix_name
-                if element_id in self.idList:
-                    raise RuntimeError("Can not keep more than one id blank inside main component.")
-                
-                attr_parts.append(f'id="{element_id}"')
-                self.idList[element_id] = html_tag
-
-            elif prefix_name.strip() != '':
-                attr_parts.append(f'id="{prefix_name+'_'+element_id}"')
-                self.idList[prefix_name+'_'+element_id] = html_tag
-            else:
-                attr_parts.append(f'id="{element_id}"')
-                self.idList[element_id] = html_tag
-
-
-        # Process attributes smoothly
-        for k, v in node.attributes().items():
-            k_lower = k.lower().strip()
-
-            if k_lower == "id":
-                continue
-
-            v = processParams(v,props_dict,defaults=self.defaults)
-
-            if k_lower == "innertext":
-                inner_text = v
-            elif k_lower == "style-class":
-                attr_parts.append(f'class="{v}"')
-            else:
-                attr_parts.append(f'{k}="{v}"')
-
-        if tag_lower == "window":
-            raise RuntimeError('windows are not allowed inside components')
-
-        attr_str = " " + " ".join(attr_parts) if attr_parts else ""
-
-        # CASE A: Leaf Widgets - Close immediately
-        if tag_lower not in LAYOUT_CONTAINER_TAGS:
-            return f"<{html_tag}{attr_str}>{inner_text}</{html_tag}>\n"
-
-        # CASE B: Layout Containers - Process internal tree nodes explicitly before closing
-        child_content = ""
-        current_child = node.firstChild
-        while current_child:
-            child_content += self.__convert_node_to_html(current_child,LAYOUT_CONTAINER_TAGS=LAYOUT_CONTAINER_TAGS,HTML_TAG_CONVERSION_MAP=HTML_TAG_CONVERSION_MAP,props_dict=props_dict,prefix_name=prefix_name)
-            current_child = current_child.nextSibling
-
-        # Children are now safely locked inside the parent tag container!
-        return f"<{html_tag}{attr_str}>\n{child_content}</{html_tag}>\n"
-    
-    def __addComponent(self,parentID:str,mode,**props):
-
-      
-        if parentID not in self.pyui_instance.id_map:
-            raise IdNotFoundError(f'Given parent id:{parentID} is not found.')
-
-        unique_id = uuid.uuid4().hex
-        
-        string_html = self.__convert_node_to_html(
-            self.tree,
-            self.pyui_instance.config.HTML_TAG_CONVERSION_MAP,
-            self.pyui_instance.config.LAYOUT_CONTAINER_TAGS,
-            props,
-            unique_id
-        )
-
-        string_html = f"<div id='{unique_id}_head'>{string_html}</div>"
-
-        self.pyui_instance.RegisterUnmanagedNode(unique_id+"_head",'div')
-        # registered nodes
-        for element_id in self.idList:
-            self.pyui_instance.RegisterUnmanagedNode(element_id,self.idList[element_id])
-
-
-        #send syscall to add the node
-        toSend = {'parent_id':parentID,'html_to_add':string_html,"mode":mode}
-        self.pyui_instance.sendSyscall('ADD_NODE_END',json.dumps(toSend))
-
-        self.component_list[unique_id] = True
-
-        return unique_id
-    
-    def appendComponent(self,parentID:str,**props):
-        return self.__addComponent(parentID,'append',**props)
-    
-    def addComponentTop(self,parentID:str,**props):
-        return self.__addComponent(parentID,'top',**props)
-
-    def addComponentAfter(self,preceedingID:str,**props):
-        return self.__addComponent(preceedingID,'after',**props)
-    
-    def removeComponent(self,node_id:str):
-
-        if not node_id in self.component_list:
-            raise IdNotFoundError(f'The given node id:{node_id} not found or is out of scope of this class.')
-        
-        toSend = {"id":node_id}
-        
-        self.pyui_instance.sendSyscall('REM_NODE',json.dumps(toSend))
-        
-
-    
 class Pipeline:
     def __init__(self):
+        '''
+        Set up a chained pipeline 
+        '''
         self.steps = []
+    def __add__(self, other):
+        self.add(other)
+        return self
+    def __radd__(self, other):
+        self.add(other)
+        return self
+
     def add(self, target):
         self.steps.append(target)
     def call(self,args:list[tuple]=[]):
