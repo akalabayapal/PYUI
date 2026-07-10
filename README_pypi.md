@@ -45,13 +45,13 @@ This will generate boilerplate project. Following folder and files will be gener
 
 To compile to a PYUI project and run it
 
-    python -m PYUI.buildtools --compile <directory-of-project> --run
+    python -m PYUI.manage --compile <directory-of-project> --run
 
 This command will compile your project into a PYUI project and run it. Within few seconds(depending on project size) you can see you layout
 
 To compile without running project
 
-    python -m PYUI.buildtools --compile <directory-of-project>
+    python -m PYUI.manage --compile <directory-of-project>
 
 It will save your project in *build/temp_xxxxx.yyyy* (see last line of buildscript output). To launch the project go to the directory and run:
 
@@ -63,7 +63,7 @@ It will launch your UI
 
 You can hot-reload the layout for faster UI development.
 
-    python -m PYUI.buildtools --hotreload <layout-xml-file>
+    python -m PYUI.manage --hotreload <layout-xml-file>
 
 Changing the xml file will reload the UI automatically
 

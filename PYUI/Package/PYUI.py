@@ -301,6 +301,24 @@ def camelCaseConverter(txt: str):
     return formatted
 
 
+def cpath(*path_item):
+
+    """
+    Write component path without string operation
+    
+    """
+    path = ""
+    length = len(path_item)
+    for n,j in enumerate(path_item):
+
+        if length == n + 1:
+            path += j
+        else:
+            path += j+"_"
+
+    return path
+
+
 # Errors defined
 class IdNotFoundError(Exception): pass
 class ClassChangeActionNotFoundError(Exception): pass
@@ -433,8 +451,6 @@ class PYUI:
                 toRet = self.__ExecuteJS({"id":id,"action":action.upper().strip(),"class":className},"addstyleclass",ret=ret)
 
         elif cleaned_action == 'REMOVE':
-            if not className in node.style_class_arr:
-                raise StyleClassNotFoundError(f'[Runtime Error Log] Class {className} not found.')
             del node.style_class_arr[className]
             toRet = self.__ExecuteJS({"id":id,"action":action.upper().strip(),"class":className},"addstyleclass",ret=ret)
 
@@ -448,6 +464,7 @@ class PYUI:
         return toRet
  
     def getClassList(self,id:str):
+        '''Get class list(not reliable)'''
         if not id in self.id_map:
             raise IdNotFoundError(f"[Runtime Error Log] The given id:{id} not found.")
         node:PyUILayoutNode = self.id_map[id]
@@ -604,59 +621,31 @@ class PYUI:
         return self.__window
 
 class StyleProxy:
-    """Handles element.style.any_property = value and reads them dynamically."""
+    """Handles flat style properties like element.style.color = 'red' 
+    or hyphenated properties via element.style['background-color'] = 'blue'
+    """
     def __init__(self, element_id, pyui_instance):
-        # Using __dict__ directly avoids infinite recursion inside __setattr__
         self.__dict__['id'] = element_id
         self.__dict__['pyui'] = pyui_instance
 
     def __getattr__(self, name: str):
-        """Runs when developer reads: value = element.style.color"""
+        """Fetches flat style properties using dot notation: element.style.color"""
         return self.pyui.getStyle(self.id, name)
 
     def __setattr__(self, name: str, value):
-        """Runs when developer writes: element.style.color = 'red'"""
+        """Sets flat style properties using dot notation: element.style.color = 'red'"""
         self.pyui.setStyle(self.id, name, value)
 
-    def __getitem__(self, item):
-        """Triggers automatically when someone slices: proxy[:-1]"""
-        # Fetch the real string from your engine first, then slice it!
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        return real_value[item]
+    def __getitem__(self, item: str):
+        """Allows reading hyphenated CSS properties: element.style['background-color']"""
+        return self.pyui.getStyle(self.id, item)
 
-    def __len__(self):
-        """Triggers automatically when someone calls len(proxy)"""
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        return len(real_value)
-    
-    def __add__(self, other):
-        """Triggers when: proxy + "something" """
-        # Fetch the real string from your engine
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        # Cast the other side to a string just in case, then add them
-        return real_value + str(other)
+    def __setitem__(self, item: str, value):
+        """Allows writing hyphenated CSS properties: element.style['background-color'] = 'black'"""
+        self.pyui.setStyle(self.id, item, value)
 
-    def __radd__(self, other):
-        """Triggers when: "something" + proxy """
-        # Fetch the real string from your engine
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        return str(other) + real_value
-    
-    def __hash__(self):
-        """Allows the proxy to be used as a stable dictionary key by value."""
-        return hash(str(self.pyui.getAttrib(self.id, self.path)))
-
-    def __eq__(self, other):
-        """Allows direct equality comparison with strings: proxy == '5' """
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        if isinstance(other, AttribProxy):
-            return real_value == str(other.pyui.getAttrib(other.id, other.path))
-        return real_value == other
-
-    def __bool__(self):
-        """Triggers during truthy checks like: if calcout.attrib.value: """
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        return bool(real_value)
+    def __repr__(self):
+        return f"[Style Proxy for Element ID: {self.id}]"
 
 
 class AttribProxy:
@@ -667,64 +656,58 @@ class AttribProxy:
         self.__dict__['path'] = path
 
     def __getattr__(self, name: str):
-        """
-        Builds the dot-separated string path dynamically!
-        If they do element.attrib.user.name, this returns a new proxy tracking "user.name"
-        """
+        """Builds the dot-separated string path dynamically."""
         new_path = f"{self.path}.{name}" if self.path else name
         return AttribProxy(self.id, self.pyui, new_path)
 
     def __setattr__(self, name: str, value):
-        """Runs when they finally assign a value: element.attrib.user.name = 'Alex'"""
+        """Assigns a value into the engine's functional updater pipeline."""
         full_path = f"{self.path}.{name}" if self.path else name
-        # Fires right into your engine's functional updater pipeline!
         self.pyui.set(self.id, full_path, value)
 
+    def _get_value(self):
+        """Helper to fetch the live native Python value from the engine."""
+        return self.pyui.getAttrib(self.id, self.path)
+
     def __repr__(self):
-        """If they just print the attribute proxy directly, fetch the value from the DOM."""
+        """__repr__ must return a string type in Python."""
         if not self.path:
             return "[Attributes Proxy Root]"
-        return str(self.pyui.getAttrib(self.id, self.path))
+        return repr(self._get_value())
     
-    def __getitem__(self, item):
-        """Triggers automatically when someone slices: proxy[:-1]"""
-        # Fetch the real string from your engine first, then slice it!
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        return real_value[item]
-
-    def __len__(self):
-        """Triggers automatically when someone calls len(proxy)"""
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        return len(real_value)
-
-    def __add__(self, other):
-        """Triggers when: proxy + "something" """
-        # Fetch the real string from your engine
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        # Cast the other side to a string just in case, then add them
-        return real_value + str(other)
-
-    def __radd__(self, other):
-        """Triggers when: "something" + proxy """
-        # Fetch the real string from your engine
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        return str(other) + real_value
-    
-    def __hash__(self):
-        """Allows the proxy to be used as a stable dictionary key by value."""
-        return hash(str(self.pyui.getAttrib(self.id, self.path)))
+    def __bool__(self):
+        """Triggers naturally: if element.attrib.checked: 
+        Now respects real native booleans (False), None, or 0!
+        """
+        return bool(self._get_value())
 
     def __eq__(self, other):
-        """Allows direct equality comparison with strings: proxy == '5' """
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
+        """Allows direct comparison with native types or other proxies."""
+        val = self._get_value()
         if isinstance(other, AttribProxy):
-            return real_value == str(other.pyui.getAttrib(other.id, other.path))
-        return real_value == other
+            return val == other._get_value()
+        return val == other
 
-    def __bool__(self):
-        """Triggers during truthy checks like: if calcout.attrib.value: """
-        real_value = str(self.pyui.getAttrib(self.id, self.path))
-        return bool(real_value)
+    def __hash__(self):
+        return hash(self._get_value())
+
+    # The methods below will now naturally throw a TypeError if someone 
+    # tries to call them on an integer/boolean, which is correct Python behavior!
+    def __len__(self):
+        return len(self._get_value())
+
+    def __getitem__(self, item):
+        return self._get_value()[item]
+
+    def __add__(self, other):
+        if isinstance(other, AttribProxy):
+            return self._get_value() + other._get_value()
+        return self._get_value() + other
+
+    def __radd__(self, other):
+        if isinstance(other, AttribProxy):
+            return other._get_value() + self._get_value()
+        return other + self._get_value()
 
 class LayoutResult(tuple):
     """
@@ -908,7 +891,7 @@ class Component:
         if not node_id in self.component_list:
             raise IdNotFoundError(f'The given node id:{node_id} not found or is out of scope of this class.')
         
-        toSend = {"id":node_id}
+        toSend = {"id":node_id+"_head"}
         
         self.pyui_instance.sendSyscall('REM_NODE',json.dumps(toSend))
 
@@ -1111,6 +1094,13 @@ class Pipeline:
                 try: res = target(*arg,ret=True)
                 except Exception as ex: yield -1
                 yield res
+    def flush(self,pyui_instance,args:list[tuple]=[]):
+        msgs = []
+        for j in self.call(args):
+            if j == -1: self.obj.End()
+            msgs.append(j)
+        pyui_instance.sendBatch(msgs)
+
 
 class Hook:
     def __init__(self,pipe:Pipeline,pyui:PYUI,fps:int=30):

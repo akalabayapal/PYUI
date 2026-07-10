@@ -14,6 +14,8 @@ import PYUI.settings
 from pathlib import Path
 import stat
 import pickle
+from PYUI.compiler import processParams
+import warnings
 
 # Fixed: Using cross-platform forward slashes. Python handles these smoothly on Windows too.
 BUILD_FOLDERS = [
@@ -33,6 +35,76 @@ DEBUG_TYPE = {
     'info': colorama.Fore.CYAN
 }
 
+def __convert_node_to_html(node,HTML_TAG_CONVERSION_MAP:dict,LAYOUT_CONTAINER_TAGS:dict,prefix_name:str='') -> str:
+        if not node:
+            return ""
+
+        # CRITICAL: Always enforce lower-casing immediately at entry point
+        tag_lower = node.tag.lower().strip()
+
+        if tag_lower == 'componentfile':
+            tag_lower = node.tag.strip()
+
+
+        #IMPORTANT:No styles tag after main-content.if found it will trigger warning
+        if tag_lower == "style":
+            warnings.warn("Styles inside and below main-content are not evaluated.Please link them out of main content and 'above it'",SyntaxWarning)
+
+        html_tag = HTML_TAG_CONVERSION_MAP.get(tag_lower, tag_lower)
+
+        attr_parts = []
+        inner_text = "" 
+
+        element_id:str = getattr(node, 'id', None)
+        if element_id:
+
+            if element_id.strip().startswith("dyn_id"):
+                element_id = prefix_name
+                
+                attr_parts.append(f'id="{element_id}"')
+           
+
+            elif prefix_name.strip() != '':
+                attr_parts.append(f'id="{prefix_name+'_'+element_id}"')
+              
+            else:
+                attr_parts.append(f'id="{element_id}"')
+            
+
+        # Process attributes smoothly
+        for k, v in node.attributes().items():
+            k_lower = k.lower().strip()
+
+            if k_lower == "id":
+                continue
+
+    
+
+            if k_lower == "innertext":
+                inner_text = v
+            elif k_lower == "style-class":
+                attr_parts.append(f'class="{v}"')
+            else:
+                attr_parts.append(f'{k}="{v}"')
+
+        if tag_lower == "window":
+            raise RuntimeError('windows are not allowed inside components')
+
+        attr_str = " " + " ".join(attr_parts) if attr_parts else ""
+
+        # CASE A: Leaf Widgets - Close immediately
+        if tag_lower not in LAYOUT_CONTAINER_TAGS:
+            return f"<{html_tag}{attr_str}>{inner_text}</{html_tag}>\n"
+
+        # CASE B: Layout Containers - Process internal tree nodes explicitly before closing
+        child_content = ""
+        current_child = node.firstChild
+        while current_child:
+            child_content += __convert_node_to_html(current_child,LAYOUT_CONTAINER_TAGS=LAYOUT_CONTAINER_TAGS,HTML_TAG_CONVERSION_MAP=HTML_TAG_CONVERSION_MAP,prefix_name=prefix_name)
+            current_child = current_child.nextSibling
+
+        # Children are now safely locked inside the parent tag container!
+        return f"<{html_tag}{attr_str}>\n{child_content}</{html_tag}>\n"
 class TargetNotFoundError(Exception):
     pass
 
@@ -123,8 +195,10 @@ def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=Non
     # 3. Compile Components
     # =========================================
     COMPONENTS_FOLDER = os.path.join(PROJECT_DIR, 'layouts', 'components')
+    
     for f in os.scandir(COMPONENTS_FOLDER):
-            PYUI.compiler.compile_layout(f, os.path.join(REQ_FOLDERS['compiled_components'], os.path.basename(f).replace('.xml', '') + '.bin'), PROJECT_DIR, TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP, Component=True)
+            tree = PYUI.compiler.compile_layout(f, os.path.join(REQ_FOLDERS['compiled_components'], os.path.basename(f).replace('.xml', '') + '.bin'), PROJECT_DIR, TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP, Component=True)
+            open(os.path.join(REQ_FOLDERS['layouts'], os.path.basename(f).replace('.xml', '') + '.html'),'w',encoding='utf-8').write( __convert_node_to_html(tree, HTML_TAG_CONVERSION_MAP=config.HTML_TAG_CONVERSION_MAP, LAYOUT_CONTAINER_TAGS=config.LAYOUT_CONTAINER_TAGS))
 
     SETTINGS_FILE = os.path.join(REQ_FOLDERS['.'], 'settings.bin')
     pickle.dump(config, open(SETTINGS_FILE, 'wb'))

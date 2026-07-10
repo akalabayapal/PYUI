@@ -9,7 +9,7 @@ version = "0.5.0.6"
 authors = [
   { name="Akalabaya Pal", email="akalabaya.2008@proton.me" },
 ]
-description = "PYUI:Python Threadsafe MPUI framework, with compiled xml layouts and python."
+description = "PYUI:Python Threadsafe UI framework, with compiled xml layouts and python.With dynamic component reusebility and management.Supports css and JS. Comes with Tailwind compatibility."
 readme = "README_pypi.md"
 dependencies = [
   "pywebview==6.2.1",

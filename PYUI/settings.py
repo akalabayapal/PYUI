@@ -61,13 +61,14 @@ class CompilerSettings:
     "Audio": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted"},
 
     # ---- DATA GRID -------- #
-    "Datagrid":{"id","style-class"},
-    "row":{"id","style-class"},
-    "data":{"id","style-class","innerText"}
+    "table":{"id","style-class"},
+    "tr":{"id","style-class"},
+    "th":{"id","style-class","innerText"},
+    "td":{"id","style-class","innerText"}
 
 }
     # Strict lowercase match arrays to preserve structural boundaries
-    LAYOUT_CONTAINER_TAGS = {"main-content", "window", "container", "pyui","Datagrid","row","ComponentFile","Selector"}
+    LAYOUT_CONTAINER_TAGS = {"main-content", "window", "container", "pyui","table","tr","ComponentFile","Selector","th","td"}
 
     HTML_TAG_CONVERSION_MAP = {
     "main-content": "div",
@@ -95,8 +96,9 @@ class CompilerSettings:
     # --- DATA GRID --- #
 
     "Datagrid":"table",
-    "row":"tr",
-    "data":"th"
+    "tr":"tr",
+    "td":"td",
+    "th":"th"
 
     }
 
