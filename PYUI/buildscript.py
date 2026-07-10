@@ -197,6 +197,8 @@ def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=Non
     COMPONENTS_FOLDER = os.path.join(PROJECT_DIR, 'layouts', 'components')
     
     for f in os.scandir(COMPONENTS_FOLDER):
+            if os.path.isdir(f):
+                 continue
             tree = PYUI.compiler.compile_layout(f, os.path.join(REQ_FOLDERS['compiled_components'], os.path.basename(f).replace('.xml', '') + '.bin'), PROJECT_DIR, TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP, Component=True)
             open(os.path.join(REQ_FOLDERS['layouts'], os.path.basename(f).replace('.xml', '') + '.html'),'w',encoding='utf-8').write( __convert_node_to_html(tree, HTML_TAG_CONVERSION_MAP=config.HTML_TAG_CONVERSION_MAP, LAYOUT_CONTAINER_TAGS=config.LAYOUT_CONTAINER_TAGS))
 
