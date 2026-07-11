@@ -356,9 +356,6 @@ To load a form from python use:
 
 **Note:** Replace 'newform' with your form name accordingly
 
-## Examples
-Figure out the examples folder to see real-world application implementation using `PYUI`
-
 ### HotReloading Layouts
 
 You can hot-reload the layout for faster UI development.
@@ -374,6 +371,11 @@ If you are using styles from some folder that is not present in styles folder of
     python -m PYUI.manage --hotreload <layout-xml-file> --stylepath <custom-styles-folder>
 
 ![hot reload image](assets/hotreload.png)   
+
+## Examples
+Figure out the examples folder to see real-world application implementation using `PYUI`
+
+
 
 
 **Note:** Use the *--keepontop* flag to keep the UI on top always
