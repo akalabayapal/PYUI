@@ -7,22 +7,25 @@ This project is targeted to make cross platform applications using python.PYUI i
 ## Motivation
 1.**Making General Purpose Applications:** This project is driven by the motivation of making a framework over python that can be used to make general purpose applications with little or no learning curve.
 
-2.**Smaller learning curve:** Recent solutions for UI development mostly are hard to learn and manage. However we adopted age-old xml layouting system that makes defining UI easy for anyone with little xml/html knowlege. 
+2.**Smaller learning curve:** Recent solutions for UI development mostly are hard to learn and manage. However we adopted age-old xml layouting system that makes defining UI easy for anyone with little xml/html knowledge. 
 
-3.**Support of Python libaries and modules:** On the logic side python can use used to it's Limit, also the threadsafe nature of the framework helps in extreme scalability.
+3.**Support of Python libraries and modules:** On the logic side python can use used to it's Limit, also the threadsafe nature of the framework helps in extreme scalability.
 
 4.**Compiled Layout and Reusibility:** This framework has pre-compiled layouting system.So errors in layout are identified on runtime. Also Layout supports re-usibility using **PYUI Components**.
 
 ## Key Features of PYUI API
-1. **DOM Manipulation:** One can change dom components from python side.There style,class,innertext and other attributes.
 
-2. **PYUI Custom Syscalls:** Using this one can extend PYUI to support any JS libaries(chart.js and etc) by writing minimal Javascript.Or can use to commiunicate between JS ans Python runtime if needed without touching internal sockets.
-
-3. **PYUI Hooks:** If some DOM updates are fast and can be lossy but realtime one can use PYUI Hooks.This can be mostly used to stream video or audio from Python to JS runtime
-
-4. **Window Management:** A PYUI forms contain can contain more than one view(window) and **PYUI** provides apis to change windows dynamically. Also Exposes Webview object for *PYwebview* for changing the application window
-
-5. **Forms Management:** **PYUI** provides dedicated apis to show and hide forms.
+| Category | Features |
+|----------|----------|
+| **Layout System** | ✅ XML-based Layouts • ✅ Reusable Components • ✅ Multi-Form Applications • ✅ Resource Management |
+| **DOM API** | ✅ Pythonic OOP API • ✅ Procedural API • ✅ Dynamic Style & Attribute Updates • ✅ Class Management |
+| **Events** | ✅ Callback Registration • ✅ Callback Removal • ✅ Event Dispatching |
+| **Dynamic UI** | ✅ Dynamic Component Addition • ✅ Component Removal • ✅ Runtime DOM Manipulation |
+| **Development** | ✅ Hot Reload • ✅ Live UI Updates • ✅ `PYUI.manage` compilation, Executable compilation |
+| **Performance** | ✅ DOM Batching • ✅ Pipelines • ✅ Hook System for High-Frequency Updates |
+| **Communication** | ✅ Custom Syscalls • ✅ Secure HMAC Runtime Bridge • ✅ Python ↔ JavaScript Communication |
+| **Compiler** | ✅ XML Compiler • ✅ Precompiled Binary Layouts (`.bin`) • ✅ Component Compiler • ✅ Fast Runtime Loading |
+| **Platform Support** | ✅ Windows • ✅ Linux |
 
 ## Getting Started
 
@@ -87,12 +90,12 @@ To compile to a executable
 
 This command will make a *debug* folder go to that folder and run *HelloWorldApp.exe*
 
-**Note:** Replace the 'HelloWorldApp' with your disired App Name
+**Note:** Replace the 'HelloWorldApp' with your desired App Name
 
 
 ## Changing Layouts
 
-TO change layouts open the *layouts/index.xml* and change the layout as per your needs.To start with a blank boilerplate, clear the content of the file and replace it with:
+To change layouts open the *layouts/index.xml* and change the layout as per your needs.To start with a blank boilerplate, clear the content of the file and replace it with:
 
     <pyui>
         <metadata>
@@ -101,8 +104,8 @@ TO change layouts open the *layouts/index.xml* and change the layout as per your
         <form-settings>
             <title>PyUI Portal - Hello World</title>
         </form-settings>
-        <main-content default-active-window="boilderplateview">
-            <window id="boilderplateview">
+        <main-content default-active-window="boilerplateview">
+            <window id="boilerplateview">
     
             </window>
         </main-content>
@@ -111,6 +114,54 @@ TO change layouts open the *layouts/index.xml* and change the layout as per your
 [Refer to documentation for XML Tags](https://akalabayapal.github.io/PYUI-docs/PYUI%20XML%20LAYOUT%20GUIDE/important_tags/) for further references
 
 **Note:** Documentation is yet not completed and is under development
+
+## Component Re-use
+Component can be re-used in `PYUI Xml`. The components are stored in `layouts/components` folder. 
+
+### Component Writing
+Open `layouts/component` folder and make a file `exampleComponent.xml` (Re-name as per convinience)
+
+#### Boilerplate component:
+
+    # File: layouts/components/example_component.xml
+
+    <ComponentFile>
+        <Text id="txt" innerText="Hello world"></Text>
+    </ComponentFile>
+
+    #File: layouts/index.xml (Can be any layout file index.xml is choosen as example)
+
+    ....
+    <Component file="exampleComponent.xml" name="component_name"></Component>
+
+#### Component with property passing
+
+Properties are essential for better component management
+
+    # File: layouts/components/example_component.xml
+
+    <ComponentFile  txt_component="Default text. This can be removed and is optional">
+        <Text id="txt" innerText="{txt_component}"></Text>
+    </ComponentFile>
+
+    #File: layouts/index.xml (Can be any layout file index.xml is choosen as example)
+
+    ....
+    <Component file="exampleComponent.xml" name="component_name" txt_component="Passed property.If default is present this is optional."></Component>
+
+
+**Note:** The component inner id's get renamed to exampleComponent_txt by compiler. While accessing it from `Python runtime` use
+
+    from PYUI.Package.PYUI import cpath
+
+    .....
+
+    component_id =cpath('exampleComponent','txt') # <- cpath is a function from PYUI.Package.PYUI helps to write name mangling cleanly
+
+    e = Element(component_id,self.pyui) # <- self.pyui is just the pyui instance
+
+    .....
+
 
 ### HotReloading Layouts
 
@@ -135,72 +186,151 @@ If you are using styles from some folder that is not present in styles folder of
 
 Open the *code/index.py* you will see
 
-    from PYUI.Package.PYUI import PYUI
+    from PYUI.Package.PYUI import PYUI,Element,Component,cpath
+
+    '''
+    Element: OPP facade over procedural PYUI
+    Component: Add and remove dynamic components from UI
+    cpath: helps is easy resolving component ids you need not write "component_id_element_id" better use cpath(component_id,    element_id)
+    both are equivalent.
+    '''
+
+    class App:
+
+        def __init__(self,obj:PYUI):
+
+            '''
+            Entry point of App class.
+            Use this class to work with index.xml
+            '''
+            self.pyui = obj
+
 
     def entry(obj:PYUI):
-        pass
 
-*entry* is the entry point to your code for handling *layouts/index.xml*.
+        """
+        This is the entry point for your form index.xml
+        You can write procedural code using this entrypoint by deleting OPP function. Or use the boilerplate App class
+        You can rename the Class to anything
+        """
+        App(obj) # executing the app class
+
+`entry` is the entry point to your code for handling `layouts/index.xml`. It is recomended to use this OOP structure for better development. Hence the boilerplate is generated like this.
+
+**Note:** You can remove the whole class and still work with only the `entry` function.
+
 
 ### Simple PYUI References
 
-1.Changing innertext for a component
 
-    obj.settext('id','new-text')
+#### Get a element Instance
+
+    e = Element('id',self.pyui)
+
+1.Changing innertext for a component
+    
+    e.text = 'new_text'
 
 Replace with the tag's id 
 
 2.Getting a particular id's attribute
 
-    obj.getAttrib('id','attribute-to-get')
+    val = e.attrib.attribute # This keep the attribute by reference, changing the variable `var` changes the attribute
+    copy = str(e.attrib.attribute) # This keeps a copy of the attribute.You can typecast to the type of need
+
+    hidden = bool(e.attrib.hidden) # Here hidden is a boolean hence we typecast to bool and store the copy
 
 3.Setting a particular id's attribute
 
-    obj.set('id','attribute','new-value')
+    e.attrib.attribute = value_of_attribute
+
+    e.attrib.hidden = False # <- Hides the element completely (Example)
 
 4.Set a new Style for a id
 
-    obj.setStyle('id','attribute','value')
+    e.style.style_attribute = 'new_style_value'
 
+    e.style.color = 'red' 
+    e.style.backgroundColor = 'blue' # <- Use camelCase for the properties with hypen in betweeen like background-color
+    
 5.Add or Remove a Class
 
-    obj.changeClass('id','class-name-to-be-added-removed',action)
+    e.add_class('class_name')
+    e.remove_class('class_name')
+    e.toggle_class('class_name')
 
-**Action:** this can be ADD and REMOVE.
 
-**Toggle is also taken but is yet to be implemented in 0.5.1**
+9.Register a callback to a id
 
-6.Get classList for a id
+    class App:
 
-    obj.getClassList('id')
+        def __init__(self,obj:PYUI):
+            self.pyui = obj
 
-7.Remove attribute
-
-    obj.removeAttrib('id','attribute')
-
-8.Register a callback to a id
-
-    def callback_function(obj:PYUI,message:msg):
+            e = Element('btn_id') # <- get the element
+            e.on('click',self.btn_callback,args=()) # <- Register callback .on(typeOfCallback,callback_function,args)
         
-        #your logic goes here
-        ....
+        def btn_callback(self,o,msg): # < - o and m are PYUI instance and callback msg(e.detail value from JS) 
+            print("Clicked")
+
 
     def entry(obj:PYUI):
 
         ....
-        obj.RegisterCallback('id','typeOfCallback',callback_function)
+        App(obj)
 
 **Note:** typeOfCallback is any valid callback supported by JS Dom like click,hover etc.
 
 9.UnRegister a callback
 
-    obj.UnRegistetCallBack('id','typeOfCallback')
+    e.off("click") # <- unregister callback .off('typeofCallback')
 
 10.End the form
 
-    obj.End()
+    self.pyui.End() 
+
+#### Dynamic attribute/style changing
+Always the name of attribute or style you will change may not be known ahead of time. Use the functional approach to work
+
+1. For getting a style
+
+        e = Element('id')
+        e.get_style('style-attribute') 
+
+2. For setting style
+
+        e.set_style('style-attribute','style-value')
+
+3. For getting a attribute
+
+        e.get_attribute('attribute-name')
+
+4. For setting a attribute
+
+        e.set_attribute('attribute-name','attribute-value')
+
+#### Loading and adding components dynamically
+
+    c = Component(self.pyui,'exampleComponent')
+    
+    id_of_comp_added = c.appendComponent('parent_id',c,**properties)
+
+    id_of_comp_added = c.addComponentTop('parent_id',c,**properties)
+
+    id_of_comp_added = c.addComponentAfter('preceeding-id',c,**properties)
+
+#### Accessing a innercomponent element
+
+    id_txt = cpath(id_of_comp_added,'element_id')
+    e = Element(id_txt,self.pyui) # <- Now use this instance to work with
+
+#### Removing component
+
+    c.removeComponent(id_of_comp_added)
 
 For further and more advanced features refer to our documentation.
+
+
 
 ## Making a new view/window
 
@@ -217,13 +347,12 @@ PYUI supports multiple view inside one form.To add a new view you need to add *w
     
     <main-content>
 
-**Note:** PYUI layout only supports **"** and not **'**.Using a single quote may cause errors.
 
 ### Switching between views/Windows
 
 You can dynamically switch between windows/views
 
-    obj.changeWindow('id-of-window-to-be-displayed')
+    self.pyui.changeWindow('id-of-window-to-be-displayed')
 
 
 ## Creating a new form
@@ -238,13 +367,17 @@ To make a new form
 
 3.Copy the boilerplates from above to start with
 
+
 ### Loading new forms dynamically
 
 To load a form from python use:
 
-    obj.loadForm('newform')
+    self.pyui.loadForm('newform')
 
 **Note:** Replace 'newform' with your form name accordingly
+
+## Examples
+Figure out the examples folder to see real-world application implementation using `PYUI`
 
 
 ## Documentation
