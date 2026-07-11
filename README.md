@@ -162,26 +162,6 @@ Properties are essential for better component management
 
     .....
 
-
-### HotReloading Layouts
-
-You can hot-reload the layout for faster UI development.
-
-    python -m PYUI.manage --hotreload layouts/index.xml
-
-**Note:** Replace with your file name
-
-Changing the xml file will reload the UI automatically
-
-If you are using styles from some folder that is not present in styles folder of the xml-file directory then
-
-    python -m PYUI.manage --hotreload <layout-xml-file> --stylepath <custom-styles-folder>
-
-![hot reload image](assets/hotreload.png)   
-
-
-**Note:** Use the *--keepontop* flag to keep the UI on top always
-
 ## Handling Logic using python
 
 Open the *code/index.py* you will see
@@ -378,6 +358,26 @@ To load a form from python use:
 
 ## Examples
 Figure out the examples folder to see real-world application implementation using `PYUI`
+
+### HotReloading Layouts
+
+You can hot-reload the layout for faster UI development.
+
+    python -m PYUI.manage --hotreload layouts/index.xml
+
+**Note:** Replace with your file name
+
+Changing the xml file will reload the UI automatically
+
+If you are using styles from some folder that is not present in styles folder of the xml-file directory then
+
+    python -m PYUI.manage --hotreload <layout-xml-file> --stylepath <custom-styles-folder>
+
+![hot reload image](assets/hotreload.png)   
+
+
+**Note:** Use the *--keepontop* flag to keep the UI on top always
+
 
 
 ## Documentation
