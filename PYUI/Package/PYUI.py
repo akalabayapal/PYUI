@@ -486,7 +486,7 @@ class PYUI:
         msgList = []
         for win in self.id_windows:
             if id == win:
-                msgList.append(self.removeAttrib(win,'style',ret=True))
+                msgList.append(self.set(win,'style','',ret=True))
             else:
                 msgList.append(self.set(win,'style','display:none;',ret=True))
         self.sendBatch(msgList)

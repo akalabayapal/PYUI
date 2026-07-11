@@ -459,33 +459,29 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
 
                 if (isEndslashgot == false)
                 {
-                    //printf("Copying from opentag...\n");
-
-
                     char pureOpen[opentagtemppos + 1];
                     char paramOpen[opentagtemppos + 1];
 
-            
                     *(Opentagtemp + opentagtemppos) = '\0'; // 1. Null-terminate BEFORE trimming
 
                     trim_whitespace(Opentagtemp);   // 2. Strip spaces cleanly
-                    tagpos = strlen(Opentagtemp);   // 3. Reset to precise string length
-                    // Copy to pure tag
-                    copyTagPure(Opentagtemp, opentagtemppos, pureOpen, paramOpen);
-
+                    
+                    // 3. Get the precise string length AFTER trimming
+                    int clean_length = strlen(Opentagtemp);   
+                    
+                    // FIX 1: Pass the clean_length, not the stale opentagtemppos
+                    copyTagPure(Opentagtemp, clean_length, pureOpen, paramOpen);
 
                     if (compareRawstr(tagpure, pureOpen, strlen(tagpure), strlen(pureOpen)))
                     {
-
-                        //printf("Found same tag in opentag\n");
-                        tagStack++; // Increase it one opening tag of same type of start tag is encountered....
+                        tagStack++; 
                     }
 
-                    for (int i = 0; i < opentagtemppos; i++)
+                    // FIX 2: Loop using clean_length so you don't inject \0 into innerHTML!
+                    for (int i = 0; i < clean_length; i++)
                     {
-
                         *(innerHTML + htmlpos) = *(Opentagtemp + i);
-                        *(Opentagtemp + i) = ' ';
+                        *(Opentagtemp + i) = ' '; // clear it out
                         htmlpos++;
                     }
 
@@ -495,6 +491,7 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
                     opentagtemppos = 0;
                     offset++;
                 }
+       
                 else
                 {
                     isEndslashgot = false;
@@ -551,6 +548,25 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
     *(tag + tagpos) = '\0';
     *(Endtag + Endtagpos) = '\0';
     *(contentprocessed + contentlen) = '\0';
+
+    // Terminate strings safely
+    *(innerHTML + htmlpos) = '\0';
+    *(tag + tagpos) = '\0';
+    *(Endtag + Endtagpos) = '\0';
+    *(contentprocessed + contentlen) = '\0';
+
+    // =========================================================
+    // FIX: UNCLOSED QUOTE CORRUPTION CATCHER
+    // =========================================================
+    // If the loop finished but we are still trapped inside a quote, 
+    // it means the layout is fatally corrupted.
+    if (isInsideQuote == true)
+    {
+        // Force the tag name to be an unregistered string.
+        // Your Python compiler will intercept this and throw the SyntaxError!
+        strcpy(tagpure, "FATAL_CORRUPTION_UNCLOSED_QUOTE");
+    }
+    // =========================================================
 
     //printf("Came here out of loop\n");
     //Wprintf("Content processed:%s\n", contentprocessed);

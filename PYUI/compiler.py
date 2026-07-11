@@ -176,6 +176,11 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
     
     c_node = c_node_ptr.contents
     tag = c_node.tag.decode('utf-8').strip() if c_node.tag else ""
+
+    if tag == "/":
+        raise SyntaxError("[Compiler Error] Invalid Layout file.\n" \
+        "   -> Error might cause due to self closing tags. PYUI Xml do not allow self closing tags." \
+        "   -> Can be a completely invalid or incomplete tag present in xml file.")
     
     
     # 1. Catch illegal tags via your active guardrail

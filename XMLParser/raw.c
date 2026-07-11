@@ -324,12 +324,17 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
 
     bool isEndslashgot = false;
 
+
+
+
     int tagStack = 0;
 
     int isInitTagStarted = false;
     int isInitTagEnded = false;
     int isEndTagStarted = false;
     int isEndTagEnded = false;
+
+
 
     char *contentprocessed = (char *)malloc(sizeof(char) * (ContentLength) + 1);
     int contentlen = 0;
@@ -368,6 +373,9 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
         }
         else if (charecter == '>' && isInsideQuote == false && isInitTagStarted == true && isEndTagStarted == false)
         {
+
+           
+
             tagStack++; // Increase the depth on hitting a start tag
 
             isInitTagEnded = true;
@@ -450,32 +458,32 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
                 *(innerHTML + htmlpos) = '<';
                 htmlpos++;
 
+               
                 if (isEndslashgot == false)
                 {
-                    // printf("Copying from opentag...\n");
-
                     char pureOpen[opentagtemppos + 1];
                     char paramOpen[opentagtemppos + 1];
 
                     *(Opentagtemp + opentagtemppos) = '\0'; // 1. Null-terminate BEFORE trimming
 
-                    trim_whitespace(Opentagtemp); // 2. Strip spaces cleanly
-                    tagpos = strlen(Opentagtemp); // 3. Reset to precise string length
-                    // Copy to pure tag
-                    copyTagPure(Opentagtemp, opentagtemppos, pureOpen, paramOpen);
+                    trim_whitespace(Opentagtemp);   // 2. Strip spaces cleanly
+                    
+                    // 3. Get the precise string length AFTER trimming
+                    int clean_length = strlen(Opentagtemp);   
+                    
+                    // FIX 1: Pass the clean_length, not the stale opentagtemppos
+                    copyTagPure(Opentagtemp, clean_length, pureOpen, paramOpen);
 
                     if (compareRawstr(tagpure, pureOpen, strlen(tagpure), strlen(pureOpen)))
                     {
-
-                        // printf("Found same tag in opentag\n");
-                        tagStack++; // Increase it one opening tag of same type of start tag is encountered....
+                        tagStack++; 
                     }
 
-                    for (int i = 0; i < opentagtemppos; i++)
+                    // FIX 2: Loop using clean_length so you don't inject \0 into innerHTML!
+                    for (int i = 0; i < clean_length; i++)
                     {
-
                         *(innerHTML + htmlpos) = *(Opentagtemp + i);
-                        *(Opentagtemp + i) = ' ';
+                        *(Opentagtemp + i) = ' '; // clear it out
                         htmlpos++;
                     }
 
@@ -536,15 +544,26 @@ void Parser(char htmlContent[], int startPointer, int depth, bool isFirst, DOMNo
         // printf("Came here in loop:%c\n",charecter);
     }
 
+
     // Terminate strings safely
     *(innerHTML + htmlpos) = '\0';
     *(tag + tagpos) = '\0';
     *(Endtag + Endtagpos) = '\0';
     *(contentprocessed + contentlen) = '\0';
 
+    
+
+    if (isInsideQuote == true)
+    {
+        // Force the tag name to be an unregistered string.
+        // Your Python compiler will intercept this and throw the SyntaxError!
+        strcpy(tagpure, "FATAL_CORRUPTION_UNCLOSED_QUOTE");
+    }
+    
+
     // printf("Came here out of loop\n");
-    // Wprintf("Content processed:%s\n", contentprocessed);
-    // printf("Tag:%s\n", tag);
+    // printf("Content processed:%s\n", contentprocessed);
+    // printf("Tag:%s\n", tagpure);
     // printf("Inner html:%s\n", innerHTML);
 
     DOMNode *newNode = (DOMNode *)malloc(sizeof(DOMNode));
