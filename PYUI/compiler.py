@@ -216,7 +216,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
             if mangling != '':
                 v = processParams(v,processProps)
             if k == "file":
-                f = os.path.join(project_dir,'layouts','components',v)
+                f = os.path.join(project_dir,'components',v)
                 if os.path.exists(f):
                     file = f
                 else:
