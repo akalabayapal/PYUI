@@ -13,7 +13,7 @@ class App:
 
         '''
         Entry point of App class.
-        Use this class to work with index.xml
+        Use this class to work with DOM UI
         '''
         self.pyui = obj
 
