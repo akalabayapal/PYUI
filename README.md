@@ -339,13 +339,18 @@ You can dynamically switch between windows/views
 
 Forms are isolated windows inside a single app.Each forms are process level isolated from one another.
 
-To make a new form
+To make a new form, go to your PYUI project root folder then,
 
-1.Add *newform.xml* in layouts folder
+    python -m PYUI.create --cf @new_form_name
 
-2.strictly put the same name *newform.py* in the code folder
+It creates the boilerplate new form for the project
 
-3.Copy the boilerplates from above to start with
+## Removing a form
+
+To delete a form, go to your project root folder then,
+
+    python -m PYUI.create --rf @delete_form_name
+
 
 
 ### Loading new forms dynamically
