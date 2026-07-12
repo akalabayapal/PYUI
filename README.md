@@ -41,7 +41,7 @@ PYUI has been tested only on Windows(x64) right now in v1.0 it will support both
 
     mkdir HelloWorldApp
     
-    python -m PYUI.create HelloWorldApp
+    python -m PYUI.create --create HelloWorldApp
 
 **Note:** Replace your app name with 'HelloWorldApp' as per your choice
 
