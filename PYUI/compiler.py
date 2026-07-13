@@ -148,6 +148,37 @@ def processParams(v:str,props:dict):
     return buffer.strip()
 
 
+# ===============================================
+# Handle source paths properly
+# ===============================================
+
+def handle_source_path(source:str,source_folder:str,is_compile_exe:bool=False,is_buildsript=False):
+
+    '''
+    To handle source path
+
+    1.Check if it is a source path or a normal path we need not evaluate
+        - All source path must start with src@ token.
+    '''
+
+    source_cleaned = source.strip() # clean the blank spaces from start and end
+    if not source_cleaned.startswith("src@"):
+        # we need to process it just return it
+        return source_cleaned
+
+    path = source_cleaned[4:] # remove src@
+    # get the path and resolve it as need
+    if is_compile_exe:
+        path = os.path.join(source_folder,path)
+        # return the posix path for safety
+        return path # convert the \\ to / slash
+    else:
+
+        # return the complete posix path of the source
+        p = Path(os.path.join(source_folder,path))
+        return "local@"+os.path.abspath(p.as_posix())
+        
+
     
 
 
@@ -155,7 +186,19 @@ def processParams(v:str,props:dict):
 # =========================================================
 # 4. THE COMPILER BAKE & INDEX PASS
 # =========================================================
-def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,project_dir:str,mangling="",processProps={},isbuildscript=False,temp_cache={},TAG_RULES_HASHMAP={},Component=False) -> PyUILayoutNode:
+def bake_strict_c_tree_to_python(
+        c_node_ptr,
+        id_windows, 
+        id_index_map: dict,
+        project_dir:str,
+        mangling="",
+        processProps={},
+        isbuildscript=False,
+        temp_cache={},
+        TAG_RULES_HASHMAP={},
+        Component=False,
+        is_compile_exe=False,
+        source_folder='sources') -> PyUILayoutNode:
     
     '''
     c_node_ptr: C Xml parser node pointer
@@ -201,7 +244,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
 
     py_node = PyUILayoutNode(tag, raw_inner_text)
 
-    isResolveInclude = False
+    
 
     if tag == "Component":
     
@@ -215,6 +258,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
         
             if mangling != '':
                 v = processParams(v,processProps)
+
             if k == "file":
                 f = os.path.join(project_dir,'components',v)
                 f2 = os.path.join(project_dir,'layouts','components',v)
@@ -297,7 +341,20 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
         
         # Process and return the sub-tree directly, passing name as mangling prefix
         # This replaces the <Component> tag with the actual inner nodes seamlessly
-        baked_component_tree = bake_strict_c_tree_to_python(real_component_root, id_windows, id_index_map, project_dir, mangling=name,processProps=processProps,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
+        baked_component_tree = bake_strict_c_tree_to_python(
+            real_component_root, 
+            id_windows, 
+            id_index_map, 
+            project_dir, 
+            mangling=name,
+            processProps=processProps,
+            isbuildscript=isbuildscript,
+            temp_cache=temp_cache,
+            TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,
+            Component=Component,
+            is_compile_exe=is_compile_exe,
+            source_folder=source_folder
+            )
 
         #Change the cache back to done processing back to normal
         if isbuildscript:
@@ -322,7 +379,18 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
                 last_sibling = last_sibling.nextSibling
             
             # Stitch the parent's remaining layout tags right onto the end of the component chain
-            last_sibling.nextSibling = bake_strict_c_tree_to_python(sibling_ptr, id_windows, id_index_map, project_dir, mangling=name,processProps=processProps,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
+            last_sibling.nextSibling = bake_strict_c_tree_to_python(
+                sibling_ptr,
+                id_windows,
+                id_index_map,
+                project_dir,
+                mangling=name,
+                processProps=processProps,
+                isbuildscript=isbuildscript,
+                temp_cache=temp_cache,
+                TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,
+                Component=Component,
+                sources_folder='sources')
 
         return baked_component_tree
         
@@ -333,13 +401,23 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
         k:str = c_node.attrKey[i].decode('utf-8').strip()
         v = c_node.attrVal[i].decode('utf-8').strip()
 
+        # correct the src paths
+        '''
+        1. When loaded from hotreload. pass the absolute path of the source wrt to the source folder. Same when it is not compiling to exe
+        2. If it is compiling to exe then redirect path to sources/ folder wrt to the bootstrap.py
+        '''
+
+
+
         if k == "":
             continue
 
 
         if mangling.strip() != "":
             v = processParams(v,processProps)
-    
+
+        if k == 'src':
+            v = handle_source_path(v,source_folder,is_compile_exe)
 
         if k not in allowed_attributes and k.split("-")[0] != 'data':
 
@@ -412,10 +490,19 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
 
     # 4. Process safe recursive layout pointers
     if child_ptr:
-        py_node.firstChild = bake_strict_c_tree_to_python(child_ptr,id_windows, id_index_map,project_dir,mangling=mangling,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
+        py_node.firstChild = bake_strict_c_tree_to_python(child_ptr,id_windows, id_index_map,project_dir,mangling=mangling,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component,is_compile_exe=is_compile_exe,source_folder=source_folder)
         
     if sibling_ptr:
-        py_node.nextSibling = bake_strict_c_tree_to_python(sibling_ptr,id_windows, id_index_map,project_dir,mangling=mangling,isbuildscript=isbuildscript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,Component=Component)
+        py_node.nextSibling = bake_strict_c_tree_to_python(
+            sibling_ptr,id_windows,
+            id_index_map,project_dir,
+            mangling=mangling,
+            isbuildscript=isbuildscript,
+            temp_cache=temp_cache,
+            TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,
+            Component=Component,
+            is_compile_exe=is_compile_exe,
+            source_folder=source_folder)
         
     return py_node
 
@@ -461,7 +548,16 @@ def preprocessor(in_file: str) -> str:
     clean_xml = "".join(line.strip() for line in raw_xml.splitlines())
     return clean_xml
 
-def compile_layout(in_file: str, out_file: str,PROJECT_DIR:str,isBuildSript=False,TAG_RULES_HASHMAP=None,Component=False):
+def compile_layout(
+          in_file: str,
+          out_file: str,
+          PROJECT_DIR:str,
+          isBuildSript=False,
+          TAG_RULES_HASHMAP=None,
+          Component=False,
+          is_compile_exe=False,
+          source_folder='sources'
+          ):
     """Executes preprocessor passes, processes tree layouts, and saves verified bytecode."""
     print(colorama.Fore.GREEN+"[PyUI Master Compiler]"+colorama.Fore.RESET+" Running build pipeline...")
     
@@ -484,10 +580,28 @@ def compile_layout(in_file: str, out_file: str,PROJECT_DIR:str,isBuildSript=Fals
             raise RuntimeError("No settings.CompilerSettings.TAGS_RULES_HASHMAP was supplied.")
         # 3. Bake and audit tree parameters via Python state checking rules, passing our index map pointer
         if isBuildSript:
-            baked_tree = bake_strict_c_tree_to_python(real_user_root,id_windows, id_index_map,PROJECT_DIR,isbuildscript=isBuildSript,temp_cache=temp_cache,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,processProps=default_props,Component=Component)
+            baked_tree = bake_strict_c_tree_to_python(
+                real_user_root,id_windows,
+                id_index_map,PROJECT_DIR,
+                isbuildscript=isBuildSript,
+                temp_cache=temp_cache,
+                TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,
+                processProps=default_props,
+                Component=Component,
+                source_folder=source_folder)
 
         else:
-            baked_tree = bake_strict_c_tree_to_python(real_user_root,id_windows, id_index_map,PROJECT_DIR,isbuildscript=isBuildSript,TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,processProps=default_props,Component=Component)
+            baked_tree = bake_strict_c_tree_to_python(
+                real_user_root,
+                id_windows,
+                id_index_map,
+                PROJECT_DIR,
+                isbuildscript=isBuildSript,
+                TAG_RULES_HASHMAP=TAG_RULES_HASHMAP,
+                processProps=default_props,
+                Component=Component,
+                is_compile_exe=is_compile_exe,
+                source_folder=source_folder)
 
         find_form_settings_content_node(baked_tree,settings=settings)
     

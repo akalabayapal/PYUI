@@ -56,9 +56,9 @@ class CompilerSettings:
 
     
     # --- NEW MEDIA TAGS ---
-    "Img": {"id", "style-class", "src", "alt", "width", "height"},
-    "Video": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted", "poster", "width", "height"},
-    "Audio": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted"},
+    "img": {"id", "style-class", "src", "alt", "width", "height"},
+    "video": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted", "poster", "width", "height"},
+    "audio": {"id", "style-class", "src", "controls", "autoplay", "loop", "muted"},
 
     # ---- DATA GRID -------- #
     "table":{"id","style-class"},
@@ -117,16 +117,29 @@ class CompilerSettings:
     "BUILD_START":None
     }
 
+    SOURCE_FOLDER = 'sources'
+
 class PreExecuteCoRountine:
     def __init__(self):
-        pass
+        '''
+        This section will be initated at very starting of the compilation chain
+        '''
     def entry(self):
-        pass
+        '''
+        Add the code to be ran at extreme start of compilation pipeline here
+        '''
 
 class PostExecuteCoRoutine:
+    
     def __init__(self):
-        pass
+        '''
+        This section will be initated at very starting of the compilation chain
+        '''
     def entry(self):
+        '''
+        Add the code to be ran at extreme end of compilation pipeline here
+        '''
         pass
+        
 
 

@@ -155,7 +155,7 @@ secret_hex_string = secret_bytes.hex()
 def flatten_and_hash(payload: dict) -> str:
     
     # Sort keys alphabetically to guarantee structural determinism
-    flat_string = json.dumps(payload, separators=(',', ':'))
+    flat_string = json.dumps(payload, separators=(',', ':'),ensure_ascii=False)
     return hashlib.sha256(flat_string.encode('utf-8')).hexdigest()
 
 
@@ -718,10 +718,12 @@ def BootStrapper(entryfile):
         exit(1)
 
     app = Bottle()
+    SYSTEM_ROOT = os.path.abspath(os.sep)
+   
     
     # 1. Force BASE_DIR to be a normalized absolute path to the frozen folder
     BASE_DIR = os.path.abspath(os.path.join(resource_path(''), 'layouts'))
-    print("Base dir:", BASE_DIR)
+    
 
     @app.route('/')
     def home():
@@ -734,6 +736,11 @@ def BootStrapper(entryfile):
     @app.route('/<filepath:path>')
     def server_static(filepath):
         # This remains safe as filepath from URL routes is inherently relative
+        if filepath.startswith('local@'):
+            filepath = filepath[6:] #remove local:
+    
+            return static_file(filepath,root=SYSTEM_ROOT)
+
         return static_file(filepath, root=BASE_DIR)
 
     sanitized_settings = sanitize_window_config(DEFAULT_WINDOW_CONFIG)

@@ -29,6 +29,7 @@ import pathlib
 import hashlib
 import queue
 from pathlib import Path
+from bottle import Bottle, static_file
 
 # FIXED: Dynamic Tailwind binary detection base fallback
 TAILWIND_BINARY = "tailwind/tailwind.exe" if sys.platform == "win32" else "tailwind/tailwind"
@@ -87,8 +88,32 @@ def load_layout(file, bin_file, new):
         print(f"[Warning] Failed to load index.bin.Error: {e}")
         exit(1)
 
+    app = Bottle()
+    SYSTEM_ROOT = os.path.abspath(os.sep)
+    BASE_DIR = os.path.abspath(Path(file).parent)
+
+
+    @app.route('/')
+    def home():
+        # 2. FIX: Convert entryfile to a path relative to BASE_DIR instead of using resource_path()
+        relative_target_html = os.path.abspath(file)
+        
+        # Pass the relative path string; Bottle safely looks for it inside BASE_DIR
+        return static_file(relative_target_html, root=SYSTEM_ROOT)
+    
+    @app.route('/<filepath:path>')
+    def server_static(filepath):
+        # This remains safe as filepath from URL routes is inherently relative
+        if filepath.startswith('local@'):
+            filepath = filepath[6:] #remove local:
+    
+            return static_file(filepath,root=SYSTEM_ROOT)
+
+        return static_file(filepath, root=BASE_DIR)
+    
+
     sanitized_settings = sanitize_window_config(DEFAULT_WINDOW_CONFIG)
-    sanitized_settings['url'] = os.path.abspath(file)
+    sanitized_settings['url'] = app
     if args.keepontop:
         sanitized_settings['on_top'] = True
 
@@ -125,7 +150,7 @@ class FileChangeHandler(FileSystemEventHandler):
             md5 = calculate_md5(event.src_path)
             if current_time - self.last_triggered > self.cooldown and md5 != self.last_md5[Path(event.src_path)]:
                 self.last_triggered = current_time
-                self.last_md5[event.src_path] = md5
+                self.last_md5[Path(event.src_path)] = md5
                 try:
                     run(self.file_to_watch, self.bin_file, self.temp_file_load, self.folder, self.css_file, self.settings)
                 except Exception as ex:
@@ -136,7 +161,7 @@ class FileChangeHandler(FileSystemEventHandler):
             md5 = calculate_md5(event.src_path)
             if current_time - self.last_triggered > self.cooldown and md5 != self.last_md5[Path(event.src_path)]:
                 self.last_triggered = current_time
-                self.last_md5[event.src_path] = md5
+                self.last_md5[Path(event.src_path)] = md5
                 try:
                     run(self.file_to_watch, self.bin_file, self.temp_file_load, self.folder, self.css_file, self.settings)
                 except Exception as ex:
@@ -249,6 +274,8 @@ def HandleHotReload():
         # if os.path.isdir(stylepath_expected):
         #     for obj in os.scandir(stylepath_expected):
         #         shutil.copy(obj, os.path.join(style_dir, os.path.basename(obj)))
+
+    
     
     window = load_layout(html_file, bin_file, True)
     th = threading.Thread(target=observer, args=(Path(path_of_xml), bin_file, html_file, folder, css_file, paths_in_Path, settingsCustom,), daemon=True)
@@ -371,7 +398,7 @@ elif args.compile != None:
 
     preexeccorountine.entry()
     # FIXED: Replaced fallback string with dynamic TAILWIND_BINARY
-    path = build(args.compile, os.environ.get('tailwind', TAILWIND_BINARY), config=compilerconfig)
+    path = build(args.compile, os.environ.get('tailwind', TAILWIND_BINARY), config=compilerconfig,is_compile_exe=False)
     postexecutioncorountine.entry()
 
     if args.run:
@@ -392,5 +419,5 @@ elif args.compileexe != None:
     
     preexeccorountine.entry()
     # FIXED: Replaced fallback string with dynamic TAILWIND_BINARY
-    build(args.compileexe, os.environ.get('tailwind', TAILWIND_BINARY), isexe=True, target=args.target, is_console=args.console, name=args.name, config=compilerconfig)
+    build(args.compileexe, os.environ.get('tailwind', TAILWIND_BINARY), isexe=True, target=args.target, is_console=args.console, name=args.name, config=compilerconfig,is_compile_exe=True)
     postexecutioncorountine.entry()

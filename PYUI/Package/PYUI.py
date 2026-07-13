@@ -129,6 +129,16 @@ def resource_path(*parts):
 
     return os.path.join(base, *parts)
 
+def resolve_src_path(*parts):
+    '''
+    Handler for converting a simple path to path respective to curr dir or dir of frozen if compiled to frozen
+    '''
+    if getattr(sys, "frozen", False):
+        base = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(sys.executable)),'layouts')
+    else:
+        base = "../../"
+
+    return os.path.join(base, *parts)
 
 def _fallback_sequential_worker():
     """Consumes and processes commits from all ungrouped threads sequentially."""
@@ -331,6 +341,43 @@ class SysCallNotFoundError(Exception): pass
 class IdCollisionError(Exception): pass
 class IllegalManagedNodeDeletionError(Exception): pass
 
+
+def HTMLObject(pyui_instance,tag:str='div',innerContent:str="",**attributes):
+    """
+    pyui_instance:PYUI instance for the form
+    tag: The html tag 
+    callbacks: list of tuples in the format ( callback_type,callback_function,callback_function_args  )
+    attributes: usage of arbitary onClick tags and etc are notrecomended.Try to use Python for logic 
+    innerContent:The innerText of the HTMLObject.Using HTML inside this is allowed but the nodes need to be manually registered using obj.RegisterUnManagedNode()
+    WARNING:The buttons or html objects are not auto UnRegistered During removal.Please Unregister them manually.
+    """
+    id_obj = uuid.uuid4().hex+"_unmanaged_"+tag
+    prepare_str = f"<{tag} "
+
+    for attrib in attributes:
+        if attrib == 'id' or attrib.lower().startswith('on'):
+            raise RuntimeError('ID or scripting attributes for HTML content is restricted for explicit assignment.')
+        if attrib == 'style_class':
+            attrib = 'class'
+            prepare_str += attrib+"='"+attributes['style_class']+"' "
+        else:
+            prepare_str += attrib+"='"+attributes[attrib]+"' "
+
+
+
+    prepare_str += f"id='{id_obj}'>"
+    prepare_str += innerContent
+
+    prepare_str += f"</{tag}>"
+
+
+    def generate():
+        pyui_instance.RegisterUnmanagedNode(id_obj,tag)
+        return prepare_str
+
+    return id_obj,generate
+
+
 class PYUI:
     def __init__(self,SQ:queue.Queue,MQ:queue.Queue,window,infoDict,syscall,config):
         self.SQ = SQ
@@ -346,6 +393,9 @@ class PYUI:
         
         self.RegisterSyscall('ADD_NODE_END')
         self.RegisterSyscall('REM_NODE')
+
+    def src_path(self,*parts)->str:
+        return "local@"+os.path.abspath(resolve_src_path(self.config.SOURCE_FOLDER,*parts))
     
 
     def commit(self, scope, **updates):

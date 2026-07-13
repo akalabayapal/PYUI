@@ -45,6 +45,7 @@ def create(folder:str):
     'layouts/styles',
     'layouts/JS',
     'layouts/components',
+    'sources'
 ]
 
     for f in folder_to_make:
