@@ -179,7 +179,7 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
 
     if tag == "/":
         raise SyntaxError("[Compiler Error] Invalid Layout file.\n" \
-        "   -> Error might cause due to self closing tags. PYUI Xml do not allow self closing tags." \
+        "   -> Error might cause due to self closing tags. PYUI Xml do not allow self closing tags.\n" \
         "   -> Can be a completely invalid or incomplete tag present in xml file.")
     
     
@@ -217,13 +217,17 @@ def bake_strict_c_tree_to_python(c_node_ptr,id_windows, id_index_map: dict,proje
                 v = processParams(v,processProps)
             if k == "file":
                 f = os.path.join(project_dir,'components',v)
+                f2 = os.path.join(project_dir,'layouts','components',v)
                 if os.path.exists(f):
                     file = f
                 else:
-                    raise FileNotFoundError(
+                    if os.path.exists(f2):
+                        file = f2
+                    else:
+                        raise FileNotFoundError(
                         f"[Compiler Error] Include file can not be found!\n"
                         f"-> Given include:{f} can not be resolved correctly."
-                        )
+                            )
             elif k == "name":
                     name = v
     

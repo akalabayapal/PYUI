@@ -43,7 +43,7 @@ class CompilerSettings:
     "ComponentFile":set(),
     
     "selector":{"id","style-class"},
-    "option":{"id","style-class","value"},
+    "option":{"id","style-class","value","innerText"},
 
     # --- TEXT TAGS ---
     "Text": {"id", "style-class", "innerText"},

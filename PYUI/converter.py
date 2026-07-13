@@ -88,7 +88,12 @@ def find_main_content_node(node:PyUILayoutNode,style_sheets:list):
 def herf_resolver(file_name,project_root_dir):
     f = os.path.join(project_root_dir,"styles",file_name)
     if not os.path.isfile(f):
-        raise FileNotFoundError('Style-sheet:'+f+' does not exists.')
+        # check for the hot-reload path and dont fail immediadtely
+        f2 = os.path.join(project_root_dir,'layouts','styles',file_name)
+        if not os.path.isfile(f2):
+            raise FileNotFoundError('Style-sheet:'+f+' does not exists.')
+ 
+      
 
     return os.path.join("styles",file_name)
 

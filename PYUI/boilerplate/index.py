@@ -20,9 +20,9 @@ class App:
 
 def entry(obj:PYUI):
     
-    """
+    '''
     This is the entry point for your form index.xml
     You can write procedural code using this entrypoint by deleting OPP function. Or use the boilerplate App class
     You can rename the Class to anything
-    """
+    '''
     App(obj) # executing the app class

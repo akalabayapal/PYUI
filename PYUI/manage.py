@@ -28,6 +28,7 @@ import stat
 import pathlib
 import hashlib
 import queue
+from pathlib import Path
 
 # FIXED: Dynamic Tailwind binary detection base fallback
 TAILWIND_BINARY = "tailwind/tailwind.exe" if sys.platform == "win32" else "tailwind/tailwind"
@@ -108,7 +109,7 @@ class FileChangeHandler(FileSystemEventHandler):
         self.temp_file_load = temp_file_load
         self.folder = folder
         self.css_file = css_file
-        self.component_list = components
+        self.component_list:list[Path] = components
         self.settings = settings
 
         for c in components:
@@ -119,10 +120,10 @@ class FileChangeHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         
-        if event.src_path == self.file_to_watch:
+        if Path(event.src_path) == self.file_to_watch:
             current_time = time.time()
             md5 = calculate_md5(event.src_path)
-            if current_time - self.last_triggered > self.cooldown and md5 != self.last_md5[event.src_path]:
+            if current_time - self.last_triggered > self.cooldown and md5 != self.last_md5[Path(event.src_path)]:
                 self.last_triggered = current_time
                 self.last_md5[event.src_path] = md5
                 try:
@@ -130,10 +131,10 @@ class FileChangeHandler(FileSystemEventHandler):
                 except Exception as ex:
                     print("Error in script compilation:", ex)
 
-        elif event.src_path in self.component_list:
+        elif Path(event.src_path) in self.component_list:
             current_time = time.time()
             md5 = calculate_md5(event.src_path)
-            if current_time - self.last_triggered > self.cooldown and md5 != self.last_md5[event.src_path]:
+            if current_time - self.last_triggered > self.cooldown and md5 != self.last_md5[Path(event.src_path)]:
                 self.last_triggered = current_time
                 self.last_md5[event.src_path] = md5
                 try:
@@ -175,13 +176,11 @@ def run(file_to_watch, bin_file, temp_file_load, folder, css_file, settings: PYU
     
     style_dir = os.path.join(folder, 'layouts', 'styles')
     if args.stylepath:
-        for obj in os.scandir(args.stylepath):
-            shutil.copy(obj, os.path.join(style_dir, os.path.basename(obj)))
+        shutil.copytree(args.stylepath,style_dir,dirs_exist_ok=True)
+  
     else:
         stylepath_expected = os.path.join(pathlib.Path(file_to_watch).parent, 'styles')
-        if os.path.isdir(stylepath_expected):
-            for obj in os.scandir(stylepath_expected):
-                shutil.copy(obj, os.path.join(style_dir, os.path.basename(obj)))
+        shutil.copytree(stylepath_expected,style_dir,dirs_exist_ok=True)
     
     load_layout(temp_file_load, bin_file, False)
 
@@ -228,6 +227,11 @@ def HandleHotReload():
     stylesheets_absbolute_path = [os.path.join(basepath, 'styles', style_path) for style_path in stylesheets]
     paths_to_scan = paths_etc + stylesheets_absbolute_path
 
+    paths_in_Path = []
+    for path in paths_to_scan:
+        paths_in_Path.append(Path(path))
+
+
     if settingsCustom.CompilerSettings.TAILWIND_ENABLED:
         if settingsCustom.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION']:
             settingsCustom.CompilerSettings.HOOK_MAP['TAILWIND_STYLE_COMPILATION'](os.path.abspath(folder))
@@ -236,16 +240,18 @@ def HandleHotReload():
 
     style_dir = os.path.join(folder, 'layouts', 'styles')
     if args.stylepath:
-        for obj in os.scandir(args.stylepath):
-            shutil.copy(obj, os.path.join(style_dir, os.path.basename(obj)))
+        shutil.copytree(args.stylepath,style_dir,dirs_exist_ok=True)
+  
     else:
         stylepath_expected = os.path.join(pathlib.Path(path_of_xml).parent, 'styles')
-        if os.path.isdir(stylepath_expected):
-            for obj in os.scandir(stylepath_expected):
-                shutil.copy(obj, os.path.join(style_dir, os.path.basename(obj)))
+        shutil.copytree(stylepath_expected,style_dir,dirs_exist_ok=True)
+
+        # if os.path.isdir(stylepath_expected):
+        #     for obj in os.scandir(stylepath_expected):
+        #         shutil.copy(obj, os.path.join(style_dir, os.path.basename(obj)))
     
     window = load_layout(html_file, bin_file, True)
-    th = threading.Thread(target=observer, args=(path_of_xml, bin_file, html_file, folder, css_file, paths_to_scan, settingsCustom,), daemon=True)
+    th = threading.Thread(target=observer, args=(Path(path_of_xml), bin_file, html_file, folder, css_file, paths_in_Path, settingsCustom,), daemon=True)
     th.start()
 
     webview.start(main_thread_loop, args=(window,))
