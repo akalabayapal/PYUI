@@ -429,15 +429,14 @@ If you are using styles from some folder that is not present in styles folder of
 
     python -m PYUI.manage --hotreload <layout-xml-file> --stylepath <custom-styles-folder>
 
+**Note:** Use the *--keepontop* flag to keep the UI on top always
+
+
 ![hot reload image](assets/hotreload.png)   
 
 ## Examples
 Figure out the examples folder to see real-world application implementation using `PYUI`
 
-
-
-
-**Note:** Use the *--keepontop* flag to keep the UI on top always
 
 
 
