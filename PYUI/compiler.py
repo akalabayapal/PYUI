@@ -419,7 +419,9 @@ def bake_strict_c_tree_to_python(
         if k == 'src':
             v = handle_source_path(v,source_folder,is_compile_exe)
 
-        if k not in allowed_attributes and k.split("-")[0] != 'data':
+        if k not in allowed_attributes and k.split("-")[0] != 'data' and k.split("-")[0] != 'auto':
+
+
 
             if tag == "ComponentFile":
                 # store the tags if not present 
@@ -464,10 +466,18 @@ def bake_strict_c_tree_to_python(
                 id_index_map[v] = py_node
                 if tag == "window":
                     id_windows.append(v)
+        elif k.split("-")[0] == 'auto':
+                #we need to strip out the auto and keep the rest allow it as it is
+                k = k[5:] 
+
+                cleaned_k = k.lower()
+                if cleaned_k.startswith('on'):
+                    raise RuntimeError("[Compiler Error] Use of JS events inside PYUi elements is restricted.")
+
         elif k.strip() == "style-class":
             py_node.style_class = v
 
-            for style_class in v.split(" "):
+            for style_class in v.split("[Compiler Error] Duplicate ID detected: '{v}'"):
                  py_node.style_class_arr[style_class] = True
 
         py_node._attributes[k] = v
