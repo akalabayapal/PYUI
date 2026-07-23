@@ -35,6 +35,111 @@ DEBUG_TYPE = {
     'info': colorama.Fore.CYAN
 }
 
+def compile_layouts(LAYOUT_FOLDER,ROOT_LAYOUT_FOLDER,compiled_layouts_folder,raw_layout_folder,js_folder,TEMP_FOLDER,config,is_compile_exe=False,source_folder='sources'):
+
+
+    for f in os.scandir(LAYOUT_FOLDER):
+        
+        if not os.path.isdir(f):
+            if os.path.basename(f).split('.')[-1].strip().lower() != "xml":
+                continue
+            
+            if config.HOOK_MAP['COMPILATION']:
+                config.HOOK_MAP['COMPILATION'](os.path.abspath(TEMP_FOLDER)) 
+
+            print("==================================================================================")
+            tree = PYUI.compiler.compile_layout(
+                 f, 
+                 os.path.join(compiled_layouts_folder, os.path.basename(f).replace('.xml', '') + '.bin'), 
+                 ROOT_LAYOUT_FOLDER, 
+                 TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP,
+                 is_compile_exe=is_compile_exe,
+                 source_folder=source_folder)
+            print("-----------------------------------------------------------------------------------")
+            
+            if config.HOOK_MAP['CONVERTION']:
+                config.HOOK_MAP['CONVERTION'](os.path.abspath(TEMP_FOLDER)) 
+
+            # get js folder path
+            print('raw:',os.path.abspath(js_folder))
+
+            PYUI.converter.save_html_file(
+                 tree,
+                 os.path.join(raw_layout_folder, os.path.basename(f).replace('.xml', '') + '.html'),
+                 ROOT_LAYOUT_FOLDER,
+                 JS_PATH=os.path.join(js_folder,os.path.basename(f).replace('.xml','.js')),
+                 HTML_MAP=config.HTML_TAG_CONVERSION_MAP,
+                 LAYOUT_TAGS=config.LAYOUT_CONTAINER_TAGS)
+            
+            print_typed("Conversion done -> " + os.path.join(raw_layout_folder, os.path.basename(f).replace('.xml', '') + '.html'))
+        else:
+             
+             if os.path.basename(f) == 'JS' or os.path.basename(f) == 'styles' or os.path.basename(f) == 'components':
+                continue
+             # recusrively scan the folder to get all files
+
+             #1. first make the folder
+             folder_path = os.path.join(compiled_layouts_folder,os.path.basename(f)) 
+             layout_raw = os.path.join(raw_layout_folder,os.path.basename(f)) 
+             js_path = os.path.join(js_folder,os.path.basename(f))
+
+             os.mkdir(folder_path)
+             os.mkdir(layout_raw)
+
+
+             #2. Call the compile_layout to that folder
+             compile_layouts(
+                    LAYOUT_FOLDER=f,
+                    ROOT_LAYOUT_FOLDER=ROOT_LAYOUT_FOLDER,
+                    compiled_layouts_folder=folder_path,
+                    raw_layout_folder=layout_raw,
+                    js_folder=js_path,
+                    TEMP_FOLDER=TEMP_FOLDER,
+                    config=config,
+                    is_compile_exe=is_compile_exe,
+                    source_folder=source_folder
+             )
+
+def compile_components(current_folder,current_complation_folder,root_layout_folder,config,temp_files:list,is_compile_exe=False,source_folder='sources'):
+
+    
+    for f in os.scandir(current_folder):
+            if os.path.isdir(f):
+                 
+                 # make directory
+                 folder_path = os.path.join(current_complation_folder,os.path.basename(f))
+                 os.mkdir(folder_path)
+
+                 compile_components(
+                      f,
+                    folder_path,
+                    root_layout_folder,
+                    config,
+                    temp_files,
+                    is_compile_exe,
+                    source_folder
+                 )
+                 
+            else:
+                tree = PYUI.compiler.compile_layout(
+                     f,
+                     os.path.join(current_complation_folder, os.path.basename(f).replace('.xml', '') + '.bin'),
+                     root_layout_folder,
+                     TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP,
+                     Component=True,
+                     is_compile_exe=is_compile_exe,
+                     source_folder=source_folder)
+                dummy_file = os.path.join(root_layout_folder,str(time.time_ns())+"_"+os.path.basename(f).replace('.xml', '') + '.html')
+
+                with open(dummy_file,'w',encoding='utf-8') as f:
+                     
+                     v =  __convert_node_to_html(tree, HTML_TAG_CONVERSION_MAP=config.HTML_TAG_CONVERSION_MAP, LAYOUT_CONTAINER_TAGS=config.LAYOUT_CONTAINER_TAGS)
+                     f.write(v)
+
+                temp_files.append(os.path.abspath(dummy_file))
+
+
+
 def __convert_node_to_html(node,HTML_TAG_CONVERSION_MAP:dict,LAYOUT_CONTAINER_TAGS:dict,prefix_name:str='') -> str:
         if not node:
             return ""
@@ -124,7 +229,7 @@ def remove_readonly(func, path, excinfo):
     os.chmod(path, stat.S_IWRITE | stat.S_IWUSR)
     func(path)
 
-def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=None, is_console=None, config: PYUI.settings.CompilerSettings = None):
+def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=None, is_console=None, config: PYUI.settings.CompilerSettings = None,is_compile_exe=False):
     if config == None:
         config = PYUI.settings.CompilerSettings
         
@@ -171,36 +276,33 @@ def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=Non
     # =============================================
     # 2. Compile Layouts
     # =============================================
-    LAYOUT_FOLDER = os.path.join(PROJECT_DIR, 'layouts')
-
-    for f in os.scandir(LAYOUT_FOLDER):
-        if not os.path.isdir(f):
-            if os.path.basename(f).split('.')[-1].strip().lower() != "xml":
-                continue
-            
-            if config.HOOK_MAP['COMPILATION']:
-                config.HOOK_MAP['COMPILATION'](os.path.abspath(TEMP_FOLDER)) 
-
-            print("==================================================================================")
-            tree = PYUI.compiler.compile_layout(f, os.path.join(REQ_FOLDERS['compiled_layouts'], os.path.basename(f).replace('.xml', '') + '.bin'), PROJECT_DIR, TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP)
-            print("-----------------------------------------------------------------------------------")
-            
-            if config.HOOK_MAP['CONVERTION']:
-                config.HOOK_MAP['CONVERTION'](os.path.abspath(TEMP_FOLDER)) 
-
-            PYUI.converter.save_html_file(tree, os.path.join(REQ_FOLDERS['layouts'], os.path.basename(f).replace('.xml', '') + '.html'), PROJECT_DIR, HTML_MAP=config.HTML_TAG_CONVERSION_MAP, LAYOUT_TAGS=config.LAYOUT_CONTAINER_TAGS)
-            print_typed("Conversion done -> " + os.path.join(REQ_FOLDERS['layouts'], os.path.basename(f).replace('.xml', '') + '.html'))
-
+    compile_layouts(
+            LAYOUT_FOLDER=os.path.join(PROJECT_DIR,'layouts'),
+            ROOT_LAYOUT_FOLDER=os.path.join(PROJECT_DIR,'layouts'),
+            compiled_layouts_folder=REQ_FOLDERS['compiled_layouts'],
+            js_folder='JS',
+            raw_layout_folder=REQ_FOLDERS['layouts'],
+            TEMP_FOLDER=TEMP_FOLDER,
+            config=config,
+            is_compile_exe=is_compile_exe,
+            source_folder=config.SOURCE_FOLDER
+    )
     # =========================================
     # 3. Compile Components
     # =========================================
-    COMPONENTS_FOLDER = os.path.join(PROJECT_DIR, 'layouts', 'components')
+
+    temp_component_file_path = []
     
-    for f in os.scandir(COMPONENTS_FOLDER):
-            if os.path.isdir(f):
-                 continue
-            tree = PYUI.compiler.compile_layout(f, os.path.join(REQ_FOLDERS['compiled_components'], os.path.basename(f).replace('.xml', '') + '.bin'), PROJECT_DIR, TAG_RULES_HASHMAP=config.TAG_RULES_HASHMAP, Component=True)
-            open(os.path.join(REQ_FOLDERS['layouts'], os.path.basename(f).replace('.xml', '') + '.html'),'w',encoding='utf-8').write( __convert_node_to_html(tree, HTML_TAG_CONVERSION_MAP=config.HTML_TAG_CONVERSION_MAP, LAYOUT_CONTAINER_TAGS=config.LAYOUT_CONTAINER_TAGS))
+    compile_components(
+        current_folder=os.path.join(PROJECT_DIR,'layouts','components'),
+        current_complation_folder=REQ_FOLDERS['compiled_components'],
+        root_layout_folder=os.path.join(PROJECT_DIR,'layouts'),
+        config=config,
+        temp_files=temp_component_file_path,
+        is_compile_exe=is_compile_exe,
+        source_folder=config.SOURCE_FOLDER
+
+    )
 
     SETTINGS_FILE = os.path.join(REQ_FOLDERS['.'], 'settings.bin')
     pickle.dump(config, open(SETTINGS_FILE, 'wb'))
@@ -223,6 +325,21 @@ def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=Non
 
     print("==================================================================================")
     
+    # we need to try to clean the dummy files created
+    score = 0
+    for temp_file in temp_component_file_path:
+         
+         try:
+              os.remove(temp_file)
+              score += 1
+         except:
+              print_typed("Failed to delete dummy component file:",temp_file,type='error')
+    
+    if len(temp_component_file_path) > 0:
+        print_typed(f"Dummy files cleaning procedure completed:{score}/{len(temp_component_file_path)}")
+        print("==================================================================================")
+
+
     # ==========================================
     # 5. Copy CSS files (Fixed Dictionary Keys)
     # ==========================================
@@ -232,12 +349,16 @@ def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=Non
     STYLE_FOLDER = os.path.join(PROJECT_DIR, 'layouts', 'styles')
 
     print_typed("Copying styles to -> layout/styles.", type='info')
-    for f in os.scandir(STYLE_FOLDER):
-        if not os.path.isdir(f):
-            # Fixed key: 'layouts/styles' instead of 'layouts\\styles'
-            dest_path = os.path.join(REQ_FOLDERS['layouts/styles'], os.path.basename(f))
-            shutil.copy(f, dest_path)
-            print_typed(f"   -> {os.path.basename(f)} copied.", show_header=False)
+
+    shutil.copytree(STYLE_FOLDER,REQ_FOLDERS['layouts/styles'],dirs_exist_ok=True)
+    print_typed("All style files transfer completed...")
+
+    # for f in os.scandir(STYLE_FOLDER):
+    #     if not os.path.isdir(f):
+    #         # Fixed key: 'layouts/styles' instead of 'layouts\\styles'
+    #         dest_path = os.path.join(REQ_FOLDERS['layouts/styles'], os.path.basename(f))
+    #         shutil.copy(f, dest_path)
+    #         print_typed(f"   -> {os.path.basename(f)} copied.", show_header=False)
 
     print("==================================================================================")
 
@@ -256,6 +377,8 @@ def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=Non
     if config.HOOK_MAP['JS_COPY']:
                 config.HOOK_MAP['JS_COPY'](os.path.abspath(TEMP_FOLDER)) 
 
+  
+
     for f in os.scandir(resolve_path("JS")):
         if not os.path.isdir(f):
             # Fixed key: 'layouts/JS'
@@ -271,20 +394,27 @@ def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=Non
     # Fixed key: 'layouts/JS'
     print_typed("Copying custom JS files...", type='info')
 
-    for f in os.scandir(CUSTOM_JS_FOLDER):
-        if not os.path.isdir(f):
-            dest_path = os.path.join(REQ_FOLDERS['layouts/JS'], os.path.basename(f))
-            shutil.copy(f, dest_path)
+    shutil.copytree(CUSTOM_JS_FOLDER,REQ_FOLDERS['layouts/JS'],dirs_exist_ok=True)
+    # for f in os.scandir(CUSTOM_JS_FOLDER):
+    #     if not os.path.isdir(f):
+    #         dest_path = os.path.join(REQ_FOLDERS['layouts/JS'], os.path.basename(f))
+    #         shutil.copy(f, dest_path)
+    print_typed("All JS files transfer completed...")
+
 
     print("==================================================================================")
 
     if config.HOOK_MAP['CODE_COPY']:
                 config.HOOK_MAP['CODE_COPY'](os.path.abspath(TEMP_FOLDER)) 
 
-    print_typed("Copying code files to ->" + REQ_FOLDERS['code'])
-    for f in os.scandir(os.path.join(PROJECT_DIR, 'code')):
-         if not os.path.isdir(f):
-            shutil.copy(f, os.path.join(REQ_FOLDERS['code'], os.path.basename(f)))
+    print_typed("Copying code files to ->" + REQ_FOLDERS['code'],type='info')
+    CODE_DIR = os.path.join(PROJECT_DIR, 'code')
+    shutil.copytree(CODE_DIR,REQ_FOLDERS['code'],dirs_exist_ok=True)
+
+
+    # for f in os.scandir(os.path.join(PROJECT_DIR, 'code')):
+    #      if not os.path.isdir(f):
+    #         shutil.copy(f, os.path.join(REQ_FOLDERS['code'], os.path.basename(f)))
             
     print_typed("All Code files transfer completed...")
     print("==================================================================================")
@@ -326,6 +456,11 @@ def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=Non
         "pyinstaller",
         "PYUICommonExecutable.spec",
     ]   
+
+    print_typed("COPY SOURCES FOR BUILDING.FROM:"+config.SOURCE_FOLDER)
+    print("==================================================================================")
+    # copy the sources to the target folder path
+    shutil.copytree(os.path.join(PROJECT_DIR,config.SOURCE_FOLDER),os.path.join(REQ_FOLDERS['layouts'],config.SOURCE_FOLDER),dirs_exist_ok=True)
     
     print_typed("RUNNING PYINSTALLER FOR EXECUTABLE CONVERSION")
     print("==================================================================================")

@@ -25,6 +25,7 @@ from PYUI.Package.PYUI import PYUI
 import pickle
 import warnings
 import colorama
+from bottle import Bottle, static_file
 class UnkownSyscallUpdate(Exception):
     pass
 class JSRuntimeError(Exception):pass
@@ -123,6 +124,9 @@ is_first = True
 ASSIGNED_PORT = queue.Queue(1)
 
 
+
+
+
 class ConsoleRouter:
     def log(self, message):
         # This catches anything sent from JS and prints it in your Python terminal
@@ -151,7 +155,7 @@ secret_hex_string = secret_bytes.hex()
 def flatten_and_hash(payload: dict) -> str:
     
     # Sort keys alphabetically to guarantee structural determinism
-    flat_string = json.dumps(payload, separators=(',', ':'))
+    flat_string = json.dumps(payload, separators=(',', ':'),ensure_ascii=False)
     return hashlib.sha256(flat_string.encode('utf-8')).hexdigest()
 
 
@@ -704,38 +708,57 @@ def BootStrapper(entryfile):
     print("[Main Thread] Parsing binary environment layout...")
     
     try:
-        load = pickle.load(open(resource_path('compiled_layouts', f'{entryfile}.bin'), 'rb'))
+        load = pickle.load(open(resource_path('compiled_layouts', f'{entryfile.replace(".","/")}.bin'), 'rb'))
 
         settings_map = load['form_settings']
         for key in settings_map:
             DEFAULT_WINDOW_CONFIG[key] = str(settings_map[key])
     except Exception as e:
-        print(f"[Warning] Failed to load index.bin.Error: {e}")
+        print(f"[Warning] Failed to load index.bin. Error: {e}")
         exit(1)
 
+    app = Bottle()
+    SYSTEM_ROOT = os.path.abspath(os.sep)
+   
+    
+    # 1. Force BASE_DIR to be a normalized absolute path to the frozen folder
+    BASE_DIR = os.path.abspath(os.path.join(resource_path(''), 'layouts'))
+    
+
+    @app.route('/')
+    def home():
+        # 2. FIX: Convert entryfile to a path relative to BASE_DIR instead of using resource_path()
+        relative_target_html = f'{entryfile.replace(".", "/")}.html'
+        
+        # Pass the relative path string; Bottle safely looks for it inside BASE_DIR
+        return static_file(relative_target_html, root=BASE_DIR)
+    
+    @app.route('/<filepath:path>')
+    def server_static(filepath):
+        # This remains safe as filepath from URL routes is inherently relative
+        if filepath.startswith('local@'):
+            filepath = filepath[6:] #remove local:
+    
+            return static_file(filepath,root=SYSTEM_ROOT)
+
+        return static_file(filepath, root=BASE_DIR)
+
     sanitized_settings = sanitize_window_config(DEFAULT_WINDOW_CONFIG)
-    sanitized_settings['url'] = resource_path('layouts', f'{entryfile}.html')
+    sanitized_settings['url'] = app
 
     router = ConsoleRouter()
-    window = webview.create_window(**sanitized_settings,js_api=router)
+    window = webview.create_window(**sanitized_settings, js_api=router)
 
-    #load the config
-    config = pickle.load(
-        open(
-            resource_path('settings.bin'),'rb'
-        )
-    )
-    
-    
+    # Load the config
+    config = pickle.load(open(resource_path('settings.bin'), 'rb'))
 
-    PYUIObj = KernelProxy(PYUI(SQ=SEND_QUEUE,MQ=MAIN_THREAD_QUEUE,window=window,infoDict=load,syscall=SysCall,config=config))
+    PYUIObj = KernelProxy(PYUI(SQ=SEND_QUEUE, MQ=MAIN_THREAD_QUEUE, window=window, infoDict=load, syscall=SysCall, config=config))
 
-    # 1. Spin up the background MAIN thread (Back to a standard thread wrapper!)
+    # Launch threads
     print("[Main Thread] Launching MAIN program thread...")
-    program_thread = threading.Thread(target=MAIN, args=(PYUIObj,window,entryfile,), daemon=True)
+    program_thread = threading.Thread(target=MAIN, args=(PYUIObj, window, entryfile,), daemon=True)
     program_thread.start()
 
-    # 2. Spin up the background WebSocket thread
     print("[Main Thread] Launching asynchronous network worker thread...")
     ws_thread = threading.Thread(target=start_websocket_server, daemon=True)
     ws_thread.start()
@@ -743,14 +766,13 @@ def BootStrapper(entryfile):
     time.sleep(0.2)
 
     print("[Main Thread] Transferring thread focus to native GUI frame.")
-    webview.start(MainQueueReader,args=window)
+    webview.start(MainQueueReader, args=window)
     MAIN_THREAD_QUEUE.put(Message(SysCall["END"]))
 
     print("[Main Thread] Window closed cleanly. Application terminating.")
-
-    os._exit(0) #close all reminant threads and shutdown
-   
+    os._exit(0)
 if __name__ == "__main__":
+    #import code.new2.example
     multiprocessing.freeze_support()
     BootStrapper('index')
   
