@@ -97,7 +97,7 @@ def herf_resolver(file_name,project_root_dir):
 
     return os.path.join("styles",file_name)
 
-def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=None,LAYOUT_TAGS:dict=None,return_stylesheets=False,component=False) -> str:
+def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=None,LAYOUT_TAGS:dict=None,JS_PATH=None,return_stylesheets=False,component=False) -> str:
     STYLEHEETS = []
     """Isolates layout from metadata and generates the clean boilerplate webpage."""
     
@@ -113,6 +113,9 @@ def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=No
     for sheet in STYLEHEETS:
         stylesheet_html += f"<link href=\"{herf_resolver(sheet,project_dir)}\" rel=\"stylesheet\">"
 
+    if JS_PATH == None:
+        JS_PATH = ""
+
     ret_str = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -123,7 +126,7 @@ def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=No
     """+stylesheet_html+"""
     <script src='JS/handler.js' defer></script>
     <script src='JS/connection.js' defer></script>
-    <script src='JS/"""+base_name.replace('html','')+"""js' defer></script>
+    <script src='"""+JS_PATH+"""'defer></script>
     </head>
 """+body_content+"""
 </html>
@@ -135,7 +138,7 @@ def generate_full_html_document(root_node,project_dir,base_name,HTML_MAP:dict=No
         return ret_str
 
 
-def save_html_file(node: PyUILayoutNode, file_path: str,project_dir:str,HTML_MAP=None,LAYOUT_TAGS=None,return_style_path=False,component=False):
+def save_html_file(node: PyUILayoutNode, file_path: str,project_dir:str,JS_PATH=None,HTML_MAP=None,LAYOUT_TAGS=None,return_style_path=False,component=False):
     if HTML_MAP == None:
         raise RuntimeError('No settings.CompilerSettings.HTML_TAG_CONVERSION_MAP was supplied.')
     if LAYOUT_TAGS == None:
@@ -148,6 +151,7 @@ def save_html_file(node: PyUILayoutNode, file_path: str,project_dir:str,HTML_MAP
         os.path.basename(file_path),
         HTML_MAP=HTML_MAP,
         LAYOUT_TAGS=LAYOUT_TAGS,
+        JS_PATH=JS_PATH,
         return_stylesheets=return_style_path,component=component)
     
     if return_style_path:

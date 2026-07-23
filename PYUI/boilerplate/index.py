@@ -18,6 +18,19 @@ class App:
         self.pyui = obj
 
 
+        '''
+        Sample usage
+        '''
+        e = Element('btn-submit',self.pyui)
+        e.on('click',self.callback)
+
+    def callback(self,pyui_instance,message):
+
+        st = Element('status-tag',self.pyui)
+        un = Element("input-name",self.pyui)
+        st.text = 'Username:'+un.attrib.value
+        st.attrib.hidden = False
+
 def entry(obj:PYUI):
     
     '''
