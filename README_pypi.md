@@ -71,6 +71,7 @@ Changing the xml file will reload the UI automatically
 
 For further API references for XML and PYUI check the [PYUI Documentation](https://akalabayapal.github.io/PYUI-docs/)
 
+Github: [View on Github](https://github.com/akalabayapal/PYUI)
 ## Credits
 
 PyWebview: https://github.com/r0x0r/pywebview
