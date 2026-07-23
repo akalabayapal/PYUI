@@ -2,7 +2,6 @@
 
 This project is targeted to make cross platform applications using python.PYUI is a layout pre-compiled framework for making python applications in very lightweight sizes. It uses a xml layouting system for defining layouts, python for logic and **PYWebview** as the renderer.Leading to a blank application size only 16MB compared to heavyweight rendering systems costing 50+ MB or TKinter that has very legacy thread-unsafe architecture
 
-**Note: Project is under rapid development and is in meta stable state. First stable release will be v1.0**
 
 ## Motivation
 1.**Making General Purpose Applications:** This project is driven by the motivation of making a framework over python that can be used to make general purpose applications with little or no learning curve.
@@ -26,6 +25,13 @@ This project is targeted to make cross platform applications using python.PYUI i
 | **Communication** | ✅ Custom Syscalls • ✅ Secure HMAC Runtime Bridge • ✅ Python ↔ JavaScript Communication |
 | **Compiler** | ✅ XML Compiler • ✅ Precompiled Binary Layouts (`.bin`) • ✅ Component Compiler • ✅ Fast Runtime Loading |
 | **Platform Support** | ✅ Windows • ✅ Linux |
+
+## Documentation
+
+For complete API references for XML and PYUI check the documentation.
+
+Documentation: [PYUI Documentation](https://akalabayapal.github.io/PYUI-docs/)
+
 
 ## Getting Started
 
@@ -167,7 +173,7 @@ To change layouts open the *layouts/index.xml* and change the layout as per your
 
 [Refer to documentation for XML Tags](https://akalabayapal.github.io/PYUI-docs/PYUI%20XML%20LAYOUT%20GUIDE/important_tags/) for further references
 
-**Note:** Documentation is yet not completed and is under development
+
 
 ## Component Re-use
 Component can be re-used in `PYUI Xml`. The components are stored in `layouts/components` folder. 
@@ -438,15 +444,6 @@ If you are using styles from some folder that is not present in styles folder of
 Figure out the examples folder to see real-world application implementation using `PYUI`
 
 
-
-
-## Documentation
-
-For further API references for XML and PYUI check the documentation.
-
-Documentation: [PYUI Documentation](https://akalabayapal.github.io/PYUI-docs/)
-
-**Note:** Documentation is yet not completed and is under development
 
 
 ## Changes and Contribution
