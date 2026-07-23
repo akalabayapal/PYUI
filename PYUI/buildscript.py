@@ -35,7 +35,7 @@ DEBUG_TYPE = {
     'info': colorama.Fore.CYAN
 }
 
-def compile_layouts(LAYOUT_FOLDER,ROOT_LAYOUT_FOLDER,compiled_layouts_folder,raw_layout_folder,TEMP_FOLDER,config,is_compile_exe=False,source_folder='sources'):
+def compile_layouts(LAYOUT_FOLDER,ROOT_LAYOUT_FOLDER,compiled_layouts_folder,raw_layout_folder,js_folder,TEMP_FOLDER,config,is_compile_exe=False,source_folder='sources'):
 
 
     for f in os.scandir(LAYOUT_FOLDER):
@@ -60,10 +60,14 @@ def compile_layouts(LAYOUT_FOLDER,ROOT_LAYOUT_FOLDER,compiled_layouts_folder,raw
             if config.HOOK_MAP['CONVERTION']:
                 config.HOOK_MAP['CONVERTION'](os.path.abspath(TEMP_FOLDER)) 
 
+            # get js folder path
+            print('raw:',os.path.abspath(js_folder))
+
             PYUI.converter.save_html_file(
                  tree,
                  os.path.join(raw_layout_folder, os.path.basename(f).replace('.xml', '') + '.html'),
                  ROOT_LAYOUT_FOLDER,
+                 JS_PATH=os.path.join(js_folder,os.path.basename(f).replace('.xml','.js')),
                  HTML_MAP=config.HTML_TAG_CONVERSION_MAP,
                  LAYOUT_TAGS=config.LAYOUT_CONTAINER_TAGS)
             
@@ -77,9 +81,11 @@ def compile_layouts(LAYOUT_FOLDER,ROOT_LAYOUT_FOLDER,compiled_layouts_folder,raw
              #1. first make the folder
              folder_path = os.path.join(compiled_layouts_folder,os.path.basename(f)) 
              layout_raw = os.path.join(raw_layout_folder,os.path.basename(f)) 
+             js_path = os.path.join(js_folder,os.path.basename(f))
 
              os.mkdir(folder_path)
              os.mkdir(layout_raw)
+
 
              #2. Call the compile_layout to that folder
              compile_layouts(
@@ -87,6 +93,7 @@ def compile_layouts(LAYOUT_FOLDER,ROOT_LAYOUT_FOLDER,compiled_layouts_folder,raw
                     ROOT_LAYOUT_FOLDER=ROOT_LAYOUT_FOLDER,
                     compiled_layouts_folder=folder_path,
                     raw_layout_folder=layout_raw,
+                    js_folder=js_path,
                     TEMP_FOLDER=TEMP_FOLDER,
                     config=config,
                     is_compile_exe=is_compile_exe,
@@ -273,6 +280,7 @@ def build(PROJECT_DIR: str, TAILWIND_EXE: str, target=None, isexe=None, name=Non
             LAYOUT_FOLDER=os.path.join(PROJECT_DIR,'layouts'),
             ROOT_LAYOUT_FOLDER=os.path.join(PROJECT_DIR,'layouts'),
             compiled_layouts_folder=REQ_FOLDERS['compiled_layouts'],
+            js_folder='JS',
             raw_layout_folder=REQ_FOLDERS['layouts'],
             TEMP_FOLDER=TEMP_FOLDER,
             config=config,
